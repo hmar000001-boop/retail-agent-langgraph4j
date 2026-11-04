@@ -134,9 +134,10 @@ Versions are pinned in the root `pom.xml` properties and module POMs:
 - Spring Boot parent 4.1.0
 - Spring AI 2.0.1
 - LangGraph4j 1.8.25
-- LangChain4j 1.23.0
+- LangChain4j core / OpenAI integration 1.22.0
+- LangChain4j Agentic 1.22.0-beta32 (the separately versioned experimental module)
 
-The LangChain4j `agentic` module is documented by its maintainers as **experimental** and subject to change. Keep it isolated from the framework-neutral core and revalidate its planner/persistence APIs when upgrading.
+The LangChain4j `agentic` module is documented by its maintainers as **experimental** and subject to change. It is independently versioned: Maven Central currently publishes `langchain4j-agentic` as `1.22.0-beta32`, and that artifact declares a dependency on `langchain4j` core `1.22.0`. Do not reuse the core version string for the Agentic artifact. Keep it isolated from the framework-neutral core and revalidate its planner/persistence APIs when upgrading.
 
 ## References
 

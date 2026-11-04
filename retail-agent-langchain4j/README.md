@@ -47,3 +47,7 @@ The shared `CandidateEvaluator` and `EvidenceVerifier` make action selection and
 `AgenticScope` contains JSON-friendly JDK values rather than custom state objects. This eases JSON persistence configuration, but **no `AgenticScopeStore` is configured in this teaching project**. `Planner.executionState()` / `restoreExecutionState()` expose the cursor needed for a persistence adapter; they are not themselves durable storage.
 
 The module currently has a deterministic scripted `ChatModel`; cassette replay and fault injection are not yet at parity with the LangGraph4j module. Initial catalogue-memory retrieval is lexical here, unlike the vector-search adapter in the LangGraph4j module. The explicit `search_catalog` grounding action is shared deterministic lexical search in both runtimes.
+
+## Dependency compatibility
+
+The Agentic artifact has its own beta version line. This workspace pins `langchain4j-agentic` to `1.22.0-beta32` and the core/OpenAI integration to `1.22.0`, matching the Agentic POM's declared core dependency. These properties are intentionally separate in the root POM.

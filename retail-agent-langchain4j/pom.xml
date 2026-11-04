@@ -10,7 +10,7 @@
   <name>Retail Agent - LangChain4j Agentic</name>
   <dependencies>
     <dependency><groupId>com.example</groupId><artifactId>retail-agent-core</artifactId><version>${project.version}</version></dependency>
-    <dependency><groupId>dev.langchain4j</groupId><artifactId>langchain4j-agentic</artifactId><version>${langchain4j.version}</version></dependency>
+    <dependency><groupId>dev.langchain4j</groupId><artifactId>langchain4j-agentic</artifactId><version>${langchain4j.agentic.version}</version></dependency>
     <dependency><groupId>dev.langchain4j</groupId><artifactId>langchain4j-open-ai</artifactId><version>${langchain4j.version}</version></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.assertj</groupId><artifactId>assertj-core</artifactId><scope>test</scope></dependency>

@@ -23,7 +23,8 @@
     <maven.compiler.release>21</maven.compiler.release>
     <spring-ai.version>2.0.1</spring-ai.version>
     <langgraph4j.version>1.8.25</langgraph4j.version>
-    <langchain4j.version>1.23.0</langchain4j.version>
+    <langchain4j.version>1.22.0</langchain4j.version>
+    <langchain4j.agentic.version>1.22.0-beta32</langchain4j.agentic.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <app.llm.provider>simulated</app.llm.provider>
     <app.llm.record>false</app.llm.record>
