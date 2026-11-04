@@ -20,7 +20,7 @@ retrieve → reserve model budget → propose → evaluate → select
                                  answer budget → answer → finalizer
 ```
 
-The 14 subagents are intentionally indexed in the same order as `RetailPlanner`'s transition table. If the agent list changes, update the planner and its test together. The planner persists its cursor as execution state, and reads its cursor from the current AgenticScope at the start of each invocation so one request cannot inherit the previous request's terminal stage.
+The 14 subagents are intentionally indexed in the same order as `RetailPlanner`'s transition table. If the agent list changes, update the planner and its test together. The proposal model is wrapped by a small non-AI trace adapter: it records `propose` immediately before invoking the model-backed `ProposalAgent`, while the preceding reservation node separately records `budget:model:proposal`. This keeps the trace honest: a budget reservation is not itself a model invocation. The test asserts two proposal events for the two decision cycles. The planner persists its cursor as execution state, and reads its cursor from the current AgenticScope at the start of each invocation so one request cannot inherit the previous request's terminal stage.
 
 ## Run
 

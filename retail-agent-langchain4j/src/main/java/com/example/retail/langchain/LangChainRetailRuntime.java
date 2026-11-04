@@ -74,8 +74,24 @@ public final class LangChainRetailRuntime {
                 .description("Reserves a model-call budget or installs deterministic fallback proposals")
                 .outputKey("proposalReservation")
                 .build();
-        ProposalAgent proposal = AgenticServices.agentBuilder(ProposalAgent.class)
+        ProposalAgent proposalModel = AgenticServices.agentBuilder(ProposalAgent.class)
                 .chatModel(chatModel)
+                .build();
+        // Wrap the model-backed subagent with a small runtime node so the authoritative
+        // transition trace records the actual proposal invocation. The reservation node
+        // records budget governance; this node records that the model call was then made.
+        var proposal = AgenticServices.nonAiAgentBuilder(scope -> {
+                    trace(scope, "propose");
+                    return proposalModel.propose(
+                            read(scope, "query", ""),
+                            read(scope, "customerId", "anonymous"),
+                            read(scope, "observationsText", ""),
+                            read(scope, "workspaceText", ""),
+                            read(scope, "feedback", ""),
+                            read(scope, "method", "retrieve-and-verify"));
+                })
+                .name("propose")
+                .description("Invokes the proposal LLM after budget reservation and records the proposal transition")
                 .outputKey("rawProposals")
                 .build();
         var evaluate = AgenticServices.nonAiAgentBuilder(scope -> evaluate(scope))

@@ -22,6 +22,7 @@ class LangChainRetailRuntimeTest {
         assertThat(result.trace()).containsSubsequence("retrieve", "propose", "evaluate", "select:execute",
                 "execute:search_catalog", "reflect", "retrieve", "propose", "evaluate", "select:execute",
                 "execute:check_stock", "reflect", "learn:outcome=verified", "answer:model-grounded");
+        assertThat(result.trace().stream().filter("propose"::equals)).hasSize(2);
         assertThat(result.iterations()).isEqualTo(2);
         assertThat(model.calls()).isEqualTo(5);
     }

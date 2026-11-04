@@ -11,3 +11,6 @@
 
 - Pin LangChain4j core and OpenAI integration to `1.22.0`.
 - Pin the separately versioned experimental `langchain4j-agentic` module to `1.22.0-beta32`; the Agentic artifact does not publish a `1.23.0` release in Maven Central.
+
+- Added an explicit LangChain4j `propose` trace event around the actual `ProposalAgent` invocation. The model-call reservation remains a separate `budget:model:proposal` event, so resource governance is not confused with proposal execution. Strengthened the runtime test to require exactly two proposal events across its two decision cycles.
+- Updated verification documentation to reflect the latest CI run: core 9/9 and LangGraph4j 18/18 passed; LangChain4j compiled and ran 4 tests with one trace-assertion failure, now addressed in source and awaiting a fresh CI run.

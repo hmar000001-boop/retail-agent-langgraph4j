@@ -1,14 +1,16 @@
 # Verification, test strategy and known limitations
 
-## Verification status of this ZIP
+## Verification status of the current source revision
 
-The first user-provided CI run established the following before stopping in LangGraph4j:
+The latest user-provided GitHub Actions run established:
 
-- Shared core: 9 tests passed, including the corrected floating-point tolerance test.
-- LangGraph4j: 18 tests were executed; 2 failed and 1 errored.
-- LangChain4j module: skipped because Maven stopped at the failing LangGraph4j module.
+- Shared core: **9 tests passed**.
+- LangGraph4j + Spring AI: **18 tests passed**; the module compiled, its Spring application context loaded, and the scripted, fault-injection, cassette, catalogue and LLM-stack tests passed.
+- LangChain4j Agentic: production and test sources **compiled**; 4 tests ran, with 3 passing and 1 failing.
 
-The LangGraph4j failures were traced to three causes: Spring constructor binding for a record with an additional convenience constructor; repeated node visits using duplicate trace labels; and an outdated outage-test assertion that hard-coded `p-103` for a query that did not require waterproof footwear. This revision addresses those causes. The packaging environment has no Maven installation and cannot resolve Maven Central, so the corrections **still require a fresh CI run**. Do not treat the corrected source as a green build until `mvn -B -ntp clean verify` passes.
+The remaining LangChain4j failure is in `LangChainRetailRuntimeTest.plannerRunsRetrieveProposeEvaluateSelectExecuteReflectAndAnswer`. The planner did invoke the model-backed proposal agent twice, as also shown by the scripted model's expected call count, but the transition trace omitted an explicit `propose` event. The trace contained `budget:model:proposal=reserved`, then `evaluate`, which made the test unable to distinguish reservation from actual model invocation. The current source wraps the proposal model call in a named non-AI trace adapter that writes `propose` immediately before invoking the model, and strengthens the test to assert exactly two proposal events.
+
+This environment cannot run the complete Maven reactor, so the trace correction **still requires a fresh CI run**. Do not treat the current source as fully green until `mvn -B -ntp clean verify` passes.
 
 ## Tests in the repository
 
@@ -60,17 +62,11 @@ Before production:
 - Calibrate uncertainty from held-out labelled outcomes and define risk thresholds.
 - Test recovery parent-state invariants and prove that any future compilation is safe before enabling it.
 
-## CI dependency-resolution follow-up (2026-11-04)
+## CI follow-up (2026-11-04)
 
-The latest observed GitHub Actions run verified:
-
-- Shared core: 9 tests passed.
-- LangGraph4j + Spring AI: 18 tests passed, including fault-injection, scripted-agent, Spring application-context, cassette, catalogue-search and LLM-stack tests.
-- The LangChain4j module was not compiled or tested because Maven Central could not resolve the requested coordinate `dev.langchain4j:langchain4j-agentic:1.23.0`.
-
-The Agentic artifact is independently versioned from the main LangChain4j artifacts. The pinned compatible pair in this workspace is:
+The latest CI run confirms that the independently versioned LangChain4j dependency pair resolves successfully:
 
 - `dev.langchain4j:langchain4j-agentic:1.22.0-beta32`
 - `dev.langchain4j:langchain4j-open-ai:1.22.0`
 
-The published Agentic POM declares `dev.langchain4j:langchain4j:1.22.0`. The root POM now exposes separate `langchain4j.version` and `langchain4j.agentic.version` properties. This fixes the missing-artifact coordinate; the next CI run must still compile and execute the LangChain4j module before the full reactor can be called green.
+It also confirms that the root reactor, shared core and LangGraph4j module pass. The remaining failure is only the missing LangChain4j `propose` trace event; it is corrected in the current source by wrapping the proposal model invocation in a non-AI trace adapter. The full reactor must be rerun before declaring the workspace green.
