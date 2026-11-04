@@ -97,8 +97,10 @@ class CoreMechanismTest {
         MemoryCandidate refreshed = memory.snapshot().getFirst();
 
         assertThat(refreshed.content()).isEqualTo("updated description");
-        assertThat(refreshed.activation()).isEqualTo(0.78);
-        assertThat(refreshed.downstreamValue()).isEqualTo(0.70);
+        // These values are produced by floating-point addition in withOutcome().
+        // Compare with a tolerance instead of requiring a bit-for-bit decimal representation.
+        assertThat(refreshed.activation()).isCloseTo(0.78, org.assertj.core.data.Offset.offset(1.0e-9));
+        assertThat(refreshed.downstreamValue()).isCloseTo(0.70, org.assertj.core.data.Offset.offset(1.0e-9));
         assertThat(refreshed.predictedRetrievalLatencyMs()).isEqualTo(25);
         assertThat(refreshed.maintenanceCost()).isEqualTo(0.15);
         assertThat(refreshed.tokenCost()).isEqualTo(22);
