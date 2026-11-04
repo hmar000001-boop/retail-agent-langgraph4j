@@ -36,7 +36,7 @@ class RetailAgentContractTest {
 
         assertThat(r.answer()).isNotBlank();
         assertThat(r.iterations()).isLessThanOrEqualTo(3);
-        assertThat(r.trace().get(0)).isEqualTo("retrieve");
+        assertThat(r.trace().get(0)).startsWith("retrieve:cycle=1:plan=0");
         assertThat(r.trace().get(r.trace().size() - 1)).startsWith("answer");
         boolean grounded = catalog.all().stream().anyMatch(p ->
                 r.answer().contains(p.id()) || r.answer().toLowerCase().contains(p.name().toLowerCase()));

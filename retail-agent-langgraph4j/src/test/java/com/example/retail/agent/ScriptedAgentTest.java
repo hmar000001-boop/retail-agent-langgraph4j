@@ -23,9 +23,12 @@ class ScriptedAgentTest {
         assertThat(r.iterations()).isEqualTo(2);
         // one full propose-evaluate-select-execute-reflect cycle, then retrieval again, then a second cycle
         assertThat(r.trace()).containsSubsequence(
-                "retrieve", "propose", "evaluate", "select:execute", "execute:search_catalog", "reflect",
-                "retrieve", "propose", "evaluate", "select:execute", "execute:check_stock", "reflect",
-                "learn", "answer");
+                "retrieve:cycle=1:plan=0", "propose:cycle=1:plan=0", "evaluate:cycle=1:plan=0",
+                "select:execute:cycle=1:plan=0", "execute:search_catalog:cycle=1",
+                "reflect:evidence-verified=false:cycle=1",
+                "retrieve:cycle=2:plan=0", "propose:cycle=2:plan=0", "evaluate:cycle=2:plan=0",
+                "select:execute:cycle=2:plan=0", "execute:check_stock:cycle=2",
+                "reflect:evidence-verified=true:cycle=2", "learn", "answer");
     }
 
 
@@ -37,7 +40,7 @@ class ScriptedAgentTest {
 
         assertThat(result.answer()).contains("p-103", "$149.0", "in stock");
         assertThat(result.observations()).contains("[check_stock] p-103 stock=4 price=149.0");
-        assertThat(result.trace()).contains("reflect:evidence-verified=true");
+        assertThat(result.trace()).anyMatch(event -> event.startsWith("reflect:evidence-verified=true:"));
     }
 
     @Test
@@ -80,7 +83,8 @@ class ScriptedAgentTest {
 
         AgentResult r = TestAgents.agent(new ScriptedChatModel(rules)).ask(TestAgents.CUSTOMER, TestAgents.QUERY);
 
-        assertThat(r.trace()).contains("propose:fallback").noneMatch(t -> t.contains("delete_orders"));
+        assertThat(r.trace()).anyMatch(event -> event.startsWith("propose:fallback:"));
+        assertThat(r.trace()).noneMatch(t -> t.contains("delete_orders"));
         assertThat(r.answer()).isNotBlank();
     }
 }

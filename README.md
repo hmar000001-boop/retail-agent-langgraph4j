@@ -14,7 +14,7 @@ The purpose is to study the *same application semantics* through two orchestrati
 - Maven 3.9+
 - Network access on the first build to resolve Maven dependencies
 
-The original upload did not include Maven Wrapper files. Maven was not available in the packaging environment, and outbound Maven repository access was unavailable there, so this source bundle has **not** been verified by a full Maven reactor build in this environment. Run the build commands below on a machine with Maven and dependency access before treating it as build-verified.
+The original upload did not include Maven Wrapper files. The first CI run confirmed the shared core's 9 tests pass, then exposed two LangGraph4j test failures and one Spring configuration-binding error. Those findings are corrected in this revision, but this packaging environment cannot reach Maven Central, so the corrected full reactor has **not yet been re-run**. Run the build below on a Maven-enabled machine before treating this revision as build-verified.
 
 ## Build and tests
 
@@ -82,7 +82,7 @@ Both implementations separate the model's **proposal/interpretation authority** 
 7. Incorporate the observation; an LLM reflection is advisory, while Java verifies completion.
 8. Continue, recover in a bounded typed substate, learn from the outcome, or answer.
 
-The **inner planning loop** is distinct from the **outer decision cycle**. Rejection can return to retrieval/proposal before executing an action. After an action, the observation can start another decision cycle.
+The **inner planning loop** is distinct from the **outer decision cycle**. Rejection can return to retrieval/proposal before executing an action. After an action, the observation can start another decision cycle. LangGraph4j trace events include `cycle` and `plan` coordinates so repeated visits remain distinguishable even if the state channel removes duplicate strings.
 
 ## What is shared and what is intentionally different
 

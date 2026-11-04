@@ -22,7 +22,7 @@ final class TestAgents {
         ProductCatalog catalog = new ProductCatalog();
         return new RetailAgent(model,
                 AgentConfiguration.indexedVectorStore(new HashEmbeddingModel(), catalog),
-                catalog, new OrderHistory(), memory, new AgentSettings(3, 0.4, 4, 3));
+                catalog, new OrderHistory(), memory, new AgentSettings(3, 0.4, 4, 3, 3, 8, 2, 180, 260));
     }
 
     static Throwable root(Throwable t) {

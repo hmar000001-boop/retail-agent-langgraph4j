@@ -2,14 +2,13 @@
 
 ## Verification status of this ZIP
 
-The workspace was assembled and statically inspected in the packaging environment. The JDK 21 compiler was available, but Maven was not installed and outbound access to Maven repositories was unavailable. Consequently:
+The first user-provided CI run established the following before stopping in LangGraph4j:
 
-- The shared core sources were checked with `javac --release 21`.
-- XML structure of all Maven POM files was checked.
-- ZIP integrity is checked after packaging.
-- **The full Maven reactor, Spring context, LangGraph4j graph, LangChain4j Agentic planner and JUnit suites have not been executed here.** Run `mvn -B -ntp clean verify` on a Maven-enabled machine.
+- Shared core: 9 tests passed, including the corrected floating-point tolerance test.
+- LangGraph4j: 18 tests were executed; 2 failed and 1 errored.
+- LangChain4j module: skipped because Maven stopped at the failing LangGraph4j module.
 
-Do not interpret this package's source review as a green CI/build result.
+The LangGraph4j failures were traced to three causes: Spring constructor binding for a record with an additional convenience constructor; repeated node visits using duplicate trace labels; and an outdated outage-test assertion that hard-coded `p-103` for a query that did not require waterproof footwear. This revision addresses those causes. The packaging environment has no Maven installation and cannot resolve Maven Central, so the corrections **still require a fresh CI run**. Do not treat the corrected source as a green build until `mvn -B -ntp clean verify` passes.
 
 ## Tests in the repository
 
@@ -25,7 +24,7 @@ Do not interpret this package's source review as a green CI/build result.
 
 ### LangGraph4j
 
-The uploaded test suite is retained and adapted to the shared core: LLM stack configuration, catalogue search, scripted agent loop, contract behavior, cassette record/replay, replay misses, low-confidence/fault behavior and fault-injection semantics. The simulator uses the provider abstraction and supports scripted replies, recording/replay and injected timeout/malformed/empty/low-confidence cases.
+The uploaded test suite is retained and adapted to the shared core: LLM stack configuration, catalogue search, scripted agent loop, contract behavior, cassette record/replay, replay misses, low-confidence/fault behavior and fault-injection semantics. The simulator uses the provider abstraction and supports scripted replies, recording/replay and injected timeout/malformed/empty/low-confidence cases. Trace events now include cycle/planning-round coordinates so repeated node executions are observable and testable.
 
 ### LangChain4j Agentic
 

@@ -172,10 +172,13 @@ public class RetailAgent {
         BoundedWorkspace.Admission admission = workspacePolicy.admit(candidates, limits.workspaceTokenBudget());
         String workspaceText = admission.admitted().stream().map(WorkspaceCandidate::content).collect(Collectors.joining("\n"));
         String mem = workspaceText.isBlank() ? "(empty bounded workspace)" : workspaceText;
+        String phase = phase(s);
         return update(RetailState.MEMORY, mem,
                 RetailState.WORKSPACE, admission.admitted(),
-                RetailState.TRACE, List.of("retrieve", "workspace:admit=" + admission.admitted().size()
-                        + "/reject=" + admission.rejectedIds().size() + "/winner=" + admission.winnerId()));
+                RetailState.TRACE, List.of("retrieve:" + phase,
+                        "workspace:admit=" + admission.admitted().size()
+                                + "/reject=" + admission.rejectedIds().size() + "/winner=" + admission.winnerId()
+                                + ":" + phase));
     }
 
     /** Proposal: model text is a candidate only; it does not gain action authority. */
@@ -196,7 +199,7 @@ public class RetailAgent {
             list = fallbackProposals(s);
         }
         return update(RetailState.PROPOSALS, list, RetailState.FAILURES, failures,
-                RetailState.BUDGET, budget, RetailState.TRACE, List.of(tag));
+                RetailState.BUDGET, budget, RetailState.TRACE, List.of(tag + ":" + phase(s)));
     }
 
     /** Independent evaluator. Never reads model confidence when assigning a decision score. */
@@ -204,9 +207,11 @@ public class RetailAgent {
         List<Proposal> scored = CandidateEvaluator.evaluateAll(s.proposals(), s.query(), s.observations(), catalog);
         double selfConfidence = scored.stream().max(Comparator.comparingDouble(Proposal::score))
                 .map(Proposal::confidence).orElse(0.0);
+        String phase = phase(s);
         return update(RetailState.PROPOSALS, scored,
                 RetailState.UNCERTAINTY, UncertaintyEstimate.uncalibratedModelEstimate(selfConfidence),
-                RetailState.TRACE, List.of("evaluate", "evaluate:independent-evidence-policy"));
+                RetailState.TRACE, List.of("evaluate:" + phase,
+                        "evaluate:independent-evidence-policy:" + phase));
     }
 
     /** CoALA selection + B4/B6 governor: accept a feasible action, reject all, or terminate safely. */
@@ -214,7 +219,7 @@ public class RetailAgent {
         List<Proposal> proposals = s.proposals();
         ResourceBudget budget = s.budget();
         if (s.failures() >= limits.maxFailures() || proposals.isEmpty()) {
-            return update(RetailState.ROUTE, "abort", RetailState.TRACE, List.of("select:abort"));
+            return update(RetailState.ROUTE, "abort", RetailState.TRACE, List.of("select:abort:" + phase(s)));
         }
 
         Proposal best = proposals.stream().max(Comparator.comparingDouble(Proposal::score)).orElseThrow();
@@ -224,7 +229,7 @@ public class RetailAgent {
                 IntentionRecord completed = s.intention().terminate("COMPLETED");
                 return update(RetailState.ROUTE, "finish", RetailState.SELECTED, best,
                         RetailState.GOAL_SATISFIED, true, RetailState.INTENTION, completed,
-                        RetailState.TRACE, List.of("select:finish-authorized-by-evidence"));
+                        RetailState.TRACE, List.of("select:finish-authorized-by-evidence:" + phase(s)));
             }
             return rejectAndReplan(s, "finish rejected: no matching, current, in-stock product evidence is available");
         }
@@ -235,10 +240,13 @@ public class RetailAgent {
         if (!budget.canUseTool()) {
             IntentionRecord suspended = s.intention().terminate("SUSPENDED_BUDGET");
             return update(RetailState.ROUTE, "abort", RetailState.INTENTION, suspended,
-                    RetailState.TRACE, List.of("select:tool-budget-exhausted"));
+                    RetailState.TRACE, List.of("select:tool-budget-exhausted:" + phase(s)));
         }
+        String phase = phase(s);
         return update(RetailState.ROUTE, "execute", RetailState.SELECTED, best,
-                RetailState.TRACE, List.of("select:execute", "select:tool=" + best.tool(), "select:score=" + best.score()));
+                RetailState.TRACE, List.of("select:execute:" + phase,
+                        "select:tool=" + best.tool() + ":" + phase,
+                        "select:score=" + best.score() + ":" + phase));
     }
 
     private Map<String, Object> rejectAndReplan(RetailState s, String feedback) {
@@ -248,13 +256,15 @@ public class RetailAgent {
                     RetailState.PLANNING_ROUND, s.planningRound() + 1,
                     RetailState.BUDGET, budget.planned(),
                     RetailState.FEEDBACK, feedback,
-                    RetailState.TRACE, List.of("select:reject-all:replan=" + (s.planningRound() + 1)));
+                    RetailState.TRACE, List.of("select:reject-all:replan=" + (s.planningRound() + 1)
+                            + ":" + phase(s)));
         }
         if (s.observations().isEmpty()) {
             return update(RetailState.ROUTE, "clarify", RetailState.CLARIFICATION, CLARIFY,
-                    RetailState.TRACE, List.of("select:clarify-after-rejected-planning"));
+                    RetailState.TRACE, List.of("select:clarify-after-rejected-planning:" + phase(s)));
         }
-        return update(RetailState.ROUTE, "abort", RetailState.TRACE, List.of("select:stop-after-planning-budget"));
+        return update(RetailState.ROUTE, "abort", RetailState.TRACE,
+                List.of("select:stop-after-planning-budget:" + phase(s)));
     }
 
     /** Grounding action. Closed tool whitelist remains the only route to side effects. */
@@ -264,7 +274,8 @@ public class RetailAgent {
         ResourceBudget budget = s.budget().toolUsed();
         int failures = s.failures() + (observation.startsWith("[error]") || observation.contains("unknown product id") ? 1 : 0);
         return update(RetailState.OBSERVATIONS, List.of(observation), RetailState.BUDGET, budget,
-                RetailState.FAILURES, failures, RetailState.TRACE, List.of("execute:" + proposal.tool()));
+                RetailState.FAILURES, failures,
+                RetailState.TRACE, List.of("execute:" + proposal.tool() + ":cycle=" + (s.iteration() + 1)));
     }
 
     /**
@@ -309,8 +320,9 @@ public class RetailAgent {
                 RetailState.VERIFIED_PRODUCT_IDS, verifiedIds,
                 RetailState.INTENTION, governed.intention(),
                 RetailState.ROUTE, route,
-                RetailState.TRACE, List.of(tag, "reflect:evidence-verified=" + verified,
-                        "governor:" + governed.decision().name().toLowerCase()));
+                RetailState.TRACE, List.of(tag + ":cycle=" + nextIteration,
+                        "reflect:evidence-verified=" + verified + ":cycle=" + nextIteration,
+                        "governor:" + governed.decision().name().toLowerCase() + ":cycle=" + nextIteration));
     }
 
     /** B2: typed child recovery with a protected parent goal and bounded attempts. */
@@ -338,10 +350,11 @@ public class RetailAgent {
                 RetailState.INTENTION, updatedIntent,
                 RetailState.FEEDBACK, resolution.instruction(),
                 RetailState.ROUTE, exhausted ? "finish" : "continue",
-                RetailState.TRACE, List.of("recover:typed=" + type.name().toLowerCase(),
-                        "recover:attempt=" + child.attempt(), "recover:parent-goal-protected",
-                        "recover:compilation-eligible=" + resolution.eligibleForCompilation(),
-                        "recover:status=" + (exhausted ? "unrecoverable" : "resolved")));
+                RetailState.TRACE, List.of("recover:typed=" + type.name().toLowerCase() + ":" + phase(s),
+                        "recover:attempt=" + child.attempt() + ":" + phase(s),
+                        "recover:parent-goal-protected:" + phase(s),
+                        "recover:compilation-eligible=" + resolution.eligibleForCompilation() + ":" + phase(s),
+                        "recover:status=" + (exhausted ? "unrecoverable" : "resolved") + ":" + phase(s)));
     }
 
     /** Learning is based on verified outcomes; failed or unverified attempts are not recorded as success. */
@@ -455,6 +468,11 @@ public class RetailAgent {
         double score = workspaceAdmissionScores.getOrDefault(candidate.id(), candidate.admissionScore());
         return new WorkspaceCandidate(candidate.id(), candidate.type(), candidate.content(), score,
                 candidate.tokenCost(), candidate.broadcastRecipients());
+    }
+
+    /** Unique cycle/planning coordinates keep repeated node visits visible in append-only traces. */
+    private static String phase(RetailState state) {
+        return "cycle=" + (state.iteration() + 1) + ":plan=" + state.planningRound();
     }
 
     private static int tokenCost(String value) { return Math.max(8, (value == null ? 0 : value.length()) / 4); }

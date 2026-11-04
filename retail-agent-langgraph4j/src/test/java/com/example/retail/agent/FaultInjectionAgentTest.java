@@ -32,7 +32,7 @@ class FaultInjectionAgentTest {
         AgentResult r = agentWith(new FaultRule("PROPOSE", FaultKind.TIMEOUT, 0, 100))
                 .ask(TestAgents.CUSTOMER, TestAgents.QUERY);
 
-        assertThat(r.trace()).contains("propose:fallback");
+        assertThat(r.trace()).anyMatch(event -> event.startsWith("propose:fallback:"));
         assertThat(r.degraded()).isTrue();
         assertThat(r.answer()).contains("in stock");
     }
@@ -43,7 +43,7 @@ class FaultInjectionAgentTest {
                 .ask(TestAgents.CUSTOMER, TestAgents.QUERY);
 
         assertThat(r.clarification()).isFalse();
-        assertThat(r.trace()).contains("evaluate:independent-evidence-policy");
+        assertThat(r.trace()).anyMatch(event -> event.startsWith("evaluate:independent-evidence-policy:"));
         assertThat(r.answer()).contains("in stock");
     }
 
@@ -52,8 +52,14 @@ class FaultInjectionAgentTest {
         AgentResult r = agentWith(new FaultRule("*", FaultKind.TIMEOUT, 0, 10_000))
                 .ask(TestAgents.CUSTOMER, TestAgents.QUERY);
 
-        assertThat(r.trace()).contains("reflect:evidence-verified=true", "answer:fallback");
+        assertThat(r.trace()).anyMatch(event -> event.startsWith("reflect:evidence-verified=true:"));
+        assertThat(r.trace()).contains("answer:fallback");
         assertThat(r.degraded()).isTrue();
-        assertThat(r.answer()).contains("p-103");
+        String stockObservation = r.observations().stream()
+                .filter(o -> o.startsWith("[check_stock] ") && o.matches(".*stock=[1-9][0-9]*.*"))
+                .findFirst().orElseThrow(() -> new AssertionError("no positive stock verification: " + r.observations()));
+        java.util.regex.Matcher id = java.util.regex.Pattern.compile("p-\\d{3}").matcher(stockObservation);
+        assertThat(id.find()).isTrue();
+        assertThat(r.answer()).contains(id.group()).contains("in stock");
     }
 }

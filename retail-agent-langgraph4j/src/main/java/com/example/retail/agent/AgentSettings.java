@@ -16,10 +16,6 @@ public record AgentSettings(
         @DefaultValue("2") int maxRecoveryAttempts,
         @DefaultValue("180") int memoryTokenBudget,
         @DefaultValue("260") int workspaceTokenBudget) {
-    public AgentSettings(int maxIterations, double clarifyThreshold, int maxFailures, int maxPlanningRounds) {
-        this(maxIterations, clarifyThreshold, maxFailures, maxPlanningRounds, 3, 8, 2, 180, 260);
-    }
-
     public AgentLimits limits() {
         return new AgentLimits(maxIterations, maxPlanningRounds, maxFailures, maxToolCalls,
                 maxModelCalls, maxRecoveryAttempts, memoryTokenBudget, workspaceTokenBudget);
