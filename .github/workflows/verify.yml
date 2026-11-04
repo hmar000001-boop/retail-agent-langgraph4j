@@ -1,0 +1,29 @@
+name: Verify retail-agent comparison workspace
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and test all modules with simulated providers
+        run: mvn -B -ntp clean verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retail-agent-test-reports
+          path: '**/target/surefire-reports/*.xml'
+          if-no-files-found: warn
