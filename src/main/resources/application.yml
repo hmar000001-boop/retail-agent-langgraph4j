@@ -1,0 +1,45 @@
+app:
+  llm:
+    # THE FLAG: real | simulated  (lowercase)
+    provider: ${APP_LLM_PROVIDER:simulated}
+    # hash = deterministic local embeddings (default, also when provider=real); real = OpenAI embeddings
+    embeddings: ${APP_LLM_EMBEDDINGS:hash}
+    # when provider=simulated: scripted | replay
+    simulation: ${APP_LLM_SIMULATION:scripted}
+    cassette-dir: ${APP_LLM_CASSETTE_DIR:src/test/resources/cassettes}
+    # when provider=real: also write every call to cassette-dir
+    record: ${APP_LLM_RECORD:false}
+    # optional fault injection, e.g.:
+    # faults:
+    #   - task: PROPOSE
+    #     kind: malformed_json   # timeout | malformed_json | empty | low_confidence
+    #     skip: 0
+    #     times: 1
+    selector:
+      chat:
+        real: openai
+        simulated: none
+      embedding:
+        real: openai
+        hash: none
+  agent:
+    max-iterations: 3        # see README: LangGraph4j step limit
+    clarify-threshold: 0.4
+    max-failures: 4
+
+spring:
+  ai:
+    model:
+      # Spring AI only wires the providers we select; everything else is switched off
+      chat: ${app.llm.selector.chat.${app.llm.provider}}
+      embedding: ${app.llm.selector.embedding.${app.llm.embeddings}}
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
