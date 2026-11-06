@@ -33,3 +33,16 @@
 ## Acceptance follow-up
 
 Run `./mvnw -B -ntp clean verify` on a Java 21 runner with Maven Central access. Start PostgreSQL, set `APP_MEMORY_BACKEND=postgres`, `APP_GRAPH_CHECKPOINT_BACKEND=postgres`, configure the matching JDBC/checkpoint credentials, and run integration tests for persistence/restart, owner isolation, supersession rollback, duplicate attribution and working-memory CAS conflicts before claiming the persistence path verified.
+
+
+## CI follow-up — clarification constant regression
+
+The 2026-11-06 GitHub Actions logs exposed a compile error in `RetailGraphNodes`: the Phase 2 facade/node split had moved the clarification call sites but omitted the `CLARIFY` prompt constant from the new node class. Both the full reactor verify job and PostgreSQL checkpoint job stopped at the same two unresolved-symbol diagnostics; these were not two independent failures.
+
+Correction applied before Phase 4:
+
+- Restored the exact clarification prompt as a private constant in `RetailGraphNodes`.
+- Kept the existing graph route mapping (`clarify` → `learn`) unchanged; no routing semantics were altered.
+- Added a regression test covering planning-budget exhaustion with no observations, including route, prompt and trace assertions.
+
+The current environment cannot execute Maven because `./mvnw` cannot resolve `downloads.apache.org` (DNS error). The reported compiler defect is corrected in source, but the full Maven reactor, JUnit suite and PostgreSQL-backed CI job still require a fresh run on the user's GitHub runner. Phase 4 should remain paused until that run is green or any newly exposed failures are corrected.

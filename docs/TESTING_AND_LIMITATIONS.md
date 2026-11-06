@@ -73,3 +73,8 @@ Before production:
 - Add distributed locking/optimistic concurrency, durable action idempotency and a transactional outbox for real side effects.
 - Add durable memory/intention stores, tenant-isolated retrieval and audit.
 - Calibrate uncertainty on held-out labelled tasks and run mechanism ablations with deterministic scenario data.
+
+
+## CI failure follow-up (2026-11-06)
+
+A GitHub Actions run reported two unresolved `CLARIFY` references in `RetailGraphNodes.java` (lines 305 and 633 in that checkout). Both the full `clean verify` job and PostgreSQL checkpoint test job failed at the same Java compilation step. The Phase 3 corrective source now defines the missing prompt constant at the node-operation boundary and adds a focused regression test for the clarification route. A local Maven rerun could not be performed because the wrapper distribution host `downloads.apache.org` is not resolvable from this environment; therefore this correction is not yet marked CI-verified.

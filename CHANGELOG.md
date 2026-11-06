@@ -30,6 +30,9 @@
 
 ## Unreleased
 
+- Fixed the Phase 3 CI compilation failure caused by the graph/node split moving clarification handling into `RetailGraphNodes` without moving its `CLARIFY` prompt constant. The constant is now declared at the node-operation boundary and both the exhausted-planning clarification branch and deterministic fallback use it.
+- Added `RetailGraphNodesClarificationTest` to exercise the exhausted-planning/no-evidence path and assert that it emits the `clarify` route, a non-empty clarification prompt and the expected trace event.
+
 - Fixed `CoreMechanismTest.adaptiveMemoryRefreshPreservesOutcomeLearnedActivationAndValue` to compare outcome-learned floating-point values with a `1e-9` tolerance instead of exact decimal equality. The production adaptive-memory policy is unchanged; the observed `0.7799999999999999` value is the normal IEEE-754 representation of the expected `0.78` result.
 - Fixed LangGraph4j Spring binding for `AgentSettings` by keeping its canonical record constructor unambiguous; updated the hand-built test fixture to use the full canonical settings tuple.
 - Made repeated LangGraph4j node visits observable by annotating trace events with outer-cycle and planning-round coordinates. This distinguishes an actual second retrieve/propose/evaluate/select pass from deduplicated identical trace labels.

@@ -52,6 +52,9 @@ import org.springframework.ai.vectorstore.VectorStore;
  * Graph topology and checkpoint lifecycle are deliberately owned by RetailAgentGraph.
  */
 public final class RetailGraphNodes {
+    /** User-facing clarification prompt shared by planning exhaustion and the deterministic fallback. */
+    private static final String CLARIFY =
+            "Could you tell me a bit more about what you are looking for (category, budget, and intended use)?";
     private static final double ACCEPT_SCORE = 0.55;
 
     private final LlmClient llm;
