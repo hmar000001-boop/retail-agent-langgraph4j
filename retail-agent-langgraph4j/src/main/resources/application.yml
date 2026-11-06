@@ -33,6 +33,10 @@ app:
     memory-token-budget: 180
     workspace-token-budget: 260
 
+  memory:
+    backend: ${APP_MEMORY_BACKEND:memory} # memory is local/test only; production profile requires postgres
+    initialize-schema: ${APP_MEMORY_INITIALIZE_SCHEMA:true}
+
   graph:
     checkpoint:
       backend: ${APP_GRAPH_CHECKPOINT_BACKEND:memory} # memory is local/test only; production profile requires postgres
@@ -44,6 +48,11 @@ app:
       create-tables: ${APP_GRAPH_CHECKPOINT_CREATE_TABLES:true}
 
 spring:
+  datasource:
+    url: ${APP_MEMORY_JDBC_URL:jdbc:postgresql://localhost:5432/langgraph4j}
+    username: ${APP_MEMORY_JDBC_USERNAME:postgres}
+    password: ${APP_MEMORY_JDBC_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
   ai:
     model:
       # Spring AI remains the vector-store/embedding adapter in this phase, not the chat provider.

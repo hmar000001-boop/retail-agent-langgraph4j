@@ -1,5 +1,19 @@
 # Changelog
 
+## Phase 3 — CoALA memory and evidence boundaries
+
+- Added framework-neutral typed working, episodic, semantic and procedural memory records, explicit lifecycle transitions, provenance, validity/retention and bounded working-memory snapshots.
+- Added per-memory usage and evidence-backed outcome-attribution records. Workspace exposure is distinct from downstream use; task-level success no longer updates every admitted memory's utility score.
+- Added subject-scoped repository ports and in-memory adapters, plus PostgreSQL JDBC repositories and `V003__coala_memory.sql` for evidence, four memory dimensions, memory use and attribution.
+- Added evidence existence/freshness/authority checks for verified episodes, semantic activation, procedure validation and causal attribution. Evidence IDs are immutable within a subject scope.
+- Added replay-safe, idempotent memory-use, episodic append, evidence insertion and per-use attribution recording; conflicting ID reuse is rejected and memory kind is included in deterministic use identity.
+- Made procedure validation evidence-event based (no count inflation on replay); a newly verified failure archives an active reusable procedure rather than leaving it silently selectable.
+- Added compare-and-set updates for episodic, semantic and procedural state changes, bounded procedure-validation retry, and row locking for PostgreSQL semantic replacement.
+- Added PostgreSQL schema checks for lifecycle/outcome/enumeration values, confidence, validity/expiry intervals and validation counts; semantic matching now uses literal substring matching consistent with the in-memory adapter.
+- Wired four independent retrieval branches (episodic, semantic, validated procedural and catalogue) into the primary LangGraph4j graph with separate state channels.
+- Added core lifecycle, subject isolation, evidence, optimistic concurrency, idempotency and attribution tests; documented limitations and PostgreSQL setup in `docs/COALA_MEMORY.md`.
+- Kept `retail-agent-langchain4j/` byte-for-byte unchanged as the experimental Agentic comparison module.
+
 ## Phase 2 — Primary LangGraph4j runtime
 
 - Split orchestration into the application facade, graph topology/thread lifecycle, and graph node operations.

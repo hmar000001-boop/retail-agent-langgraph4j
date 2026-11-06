@@ -14,6 +14,13 @@ import com.example.retail.domain.EpisodicMemory;
 import com.example.retail.domain.OrderHistory;
 import com.example.retail.domain.Product;
 import com.example.retail.domain.ProductCatalog;
+import com.example.retail.memory.JdbcCoalaMemoryRepository;
+import com.example.retail.memory.JdbcEvidenceRepository;
+import com.example.retail.agent.port.EvidenceRepository;
+import com.example.retail.memory.store.InMemoryEvidenceRepository;
+import com.example.retail.memory.service.CoalaMemoryService;
+import com.example.retail.memory.port.CoalaMemoryRepository;
+import com.example.retail.memory.store.InMemoryCoalaMemoryRepository;
 import com.example.retail.llm.HashEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import java.util.Map;
@@ -32,6 +39,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.DataSourceInitializer;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.env.Environment;
+import org.springframework.transaction.support.TransactionTemplate;
+import javax.sql.DataSource;
 
 @Configuration
 @EnableConfigurationProperties({LlmProperties.class, AgentSettings.class, GraphCheckpointProperties.class})
@@ -98,7 +112,42 @@ public class AgentConfiguration {
 
     @Bean ProductCatalog productCatalog() { return new ProductCatalog(); }
     @Bean OrderHistory orderHistory() { return new OrderHistory(); }
+    /** Legacy memory bean remains for compatibility tests and the frozen Agentic module. */
     @Bean EpisodicMemory episodicMemory() { return new EpisodicMemory(); }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.memory.backend", havingValue = "memory", matchIfMissing = true)
+    CoalaMemoryRepository inMemoryCoalaMemoryRepository() { return new InMemoryCoalaMemoryRepository(); }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.memory.backend", havingValue = "postgres")
+    CoalaMemoryRepository postgresCoalaMemoryRepository(JdbcTemplate jdbc, TransactionTemplate transactions) {
+        return new JdbcCoalaMemoryRepository(jdbc, transactions);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.memory.backend", havingValue = "memory", matchIfMissing = true)
+    EvidenceRepository inMemoryEvidenceRepository() { return new InMemoryEvidenceRepository(); }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.memory.backend", havingValue = "postgres")
+    EvidenceRepository postgresEvidenceRepository(JdbcTemplate jdbc) { return new JdbcEvidenceRepository(jdbc); }
+
+    @Bean CoalaMemoryService coalaMemoryService(CoalaMemoryRepository repository, EvidenceRepository evidenceRepository) {
+        return new CoalaMemoryService(repository,evidenceRepository);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.memory.backend", havingValue = "postgres")
+    DataSourceInitializer coalaMemorySchemaInitializer(DataSource dataSource, Environment environment) {
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
+        populator.addScript(new ClassPathResource("db/migration/V003__coala_memory.sql"));
+        DataSourceInitializer initializer = new DataSourceInitializer();
+        initializer.setDataSource(dataSource);
+        initializer.setDatabasePopulator(populator);
+        initializer.setEnabled(environment.getProperty("app.memory.initialize-schema", Boolean.class, true));
+        return initializer;
+    }
 
     @Bean
     @ConditionalOnProperty(name = "app.graph.checkpoint.backend", havingValue = "memory", matchIfMissing = true)
@@ -117,7 +166,7 @@ public class AgentConfiguration {
 
     @Bean
     RetailAgent retailAgent(AgentLlm llm, VectorStore vectorStore, ProductCatalog catalog,
-                            OrderHistory orders, EpisodicMemory memory, AgentSettings settings,
+                            OrderHistory orders, CoalaMemoryService memory, AgentSettings settings,
                             BaseCheckpointSaver checkpointSaver) {
         return new RetailAgent(llm.gateway(), vectorStore, catalog, orders, memory, settings, checkpointSaver);
     }
@@ -129,6 +178,16 @@ public class AgentConfiguration {
         return () -> {
             if (props.backend() != GraphCheckpointProperties.Backend.POSTGRES) {
                 throw new IllegalStateException("The production profile requires app.graph.checkpoint.backend=postgres");
+            }
+        };
+    }
+
+    @Bean
+    @Profile("production")
+    org.springframework.beans.factory.SmartInitializingSingleton requireDurableCoalaMemory(Environment environment) {
+        return () -> {
+            if (!"postgres".equalsIgnoreCase(environment.getProperty("app.memory.backend", "memory"))) {
+                throw new IllegalStateException("The production profile requires app.memory.backend=postgres");
             }
         };
     }

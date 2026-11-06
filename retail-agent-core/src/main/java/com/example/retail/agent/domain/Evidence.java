@@ -41,6 +41,14 @@ public record Evidence(
         return !instant.isBefore(observedAt) && (expiresAt == null || !instant.isAfter(expiresAt));
     }
 
+    /** Same immutable assertion, ignoring timestamps that may differ when a checkpoint replays its writer. */
+    public boolean sameAssertion(Evidence other) {
+        return other != null && id.equals(other.id) && subject.equals(other.subject)
+                && predicate.equals(other.predicate) && value.equals(other.value)
+                && source == other.source && authority == other.authority
+                && scope.equals(other.scope) && provenance.equals(other.provenance);
+    }
+
     private static String required(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value;

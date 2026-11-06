@@ -3,6 +3,7 @@ package com.example.retail.agent;
 import com.example.retail.domain.EpisodicMemory;
 import com.example.retail.domain.OrderHistory;
 import com.example.retail.domain.ProductCatalog;
+import com.example.retail.memory.service.CoalaMemoryService;
 import com.example.retail.agent.port.ActionGateway;
 import com.example.retail.agent.port.ActionRegistry;
 import java.util.concurrent.ForkJoinPool;
@@ -26,6 +27,22 @@ public final class RetailAgent {
                        EpisodicMemory memory, AgentSettings settings, BaseCheckpointSaver checkpointSaver) {
         this(gateway, vectorStore, catalog, orders, memory, settings, checkpointSaver,
                 new RetailActionRegistry(), null);
+    }
+
+    /** Primary constructor: CoALA memory is independent of graph checkpoints and caller-local caches. */
+    public RetailAgent(LlmGateway gateway, VectorStore vectorStore, ProductCatalog catalog, OrderHistory orders,
+                       CoalaMemoryService memory, AgentSettings settings, BaseCheckpointSaver checkpointSaver) {
+        this(gateway, vectorStore, catalog, orders, memory, settings, checkpointSaver,
+                new RetailActionRegistry(), null);
+    }
+
+    public RetailAgent(LlmGateway gateway, VectorStore vectorStore, ProductCatalog catalog, OrderHistory orders,
+                       CoalaMemoryService memory, AgentSettings settings, BaseCheckpointSaver checkpointSaver,
+                       ActionRegistry actionRegistry, ActionGateway actionGateway) {
+        this.llm = new LlmClient(gateway);
+        RetailGraphNodes nodes = new RetailGraphNodes(llm, vectorStore, catalog, orders, memory, settings,
+                actionRegistry, actionGateway);
+        this.graph = new RetailAgentGraph(nodes, settings, checkpointSaver);
     }
 
     /** Injectable authority boundary used by infrastructure adapters and graph-level contract tests. */

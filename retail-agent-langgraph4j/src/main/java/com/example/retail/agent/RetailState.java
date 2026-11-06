@@ -48,6 +48,8 @@ public class RetailState extends AgentState {
     public static final String VERIFIED_PRODUCT_IDS = "verifiedProductIds";
     public static final String EPISODIC_CANDIDATES = "episodicCandidates";
     public static final String CATALOG_CANDIDATES = "catalogCandidates";
+    public static final String SEMANTIC_CANDIDATES = "semanticCandidates";
+    public static final String PROCEDURAL_CANDIDATES = "proceduralCandidates";
     /** @deprecated replaced by two branch-specific fields to prevent concurrent list writes. */
     @Deprecated public static final String RETRIEVAL_CANDIDATES = "retrievalCandidates";
     public static final String APPROVAL_REQUIRED = "approvalRequired";
@@ -89,9 +91,14 @@ public class RetailState extends AgentState {
     public List<String> verifiedProductIds() { return this.<List<String>>value(VERIFIED_PRODUCT_IDS).orElse(List.of()); }
     public List<MemoryCandidate> episodicCandidates() { return this.<List<MemoryCandidate>>value(EPISODIC_CANDIDATES).orElse(List.of()); }
     public List<MemoryCandidate> catalogCandidates() { return this.<List<MemoryCandidate>>value(CATALOG_CANDIDATES).orElse(List.of()); }
+    public List<MemoryCandidate> semanticCandidates() { return this.<List<MemoryCandidate>>value(SEMANTIC_CANDIDATES).orElse(List.of()); }
+    public List<MemoryCandidate> proceduralCandidates() { return this.<List<MemoryCandidate>>value(PROCEDURAL_CANDIDATES).orElse(List.of()); }
     public List<MemoryCandidate> retrievalCandidates() {
-        if (value(EPISODIC_CANDIDATES).isPresent() || value(CATALOG_CANDIDATES).isPresent()) {
+        if (value(EPISODIC_CANDIDATES).isPresent() || value(CATALOG_CANDIDATES).isPresent()
+                || value(SEMANTIC_CANDIDATES).isPresent() || value(PROCEDURAL_CANDIDATES).isPresent()) {
             var merged = new ArrayList<MemoryCandidate>(episodicCandidates());
+            merged.addAll(semanticCandidates());
+            merged.addAll(proceduralCandidates());
             merged.addAll(catalogCandidates());
             return List.copyOf(merged);
         }

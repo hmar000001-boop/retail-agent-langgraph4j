@@ -18,13 +18,13 @@ This is the best structure for a later comparison because shared decisions and s
 
 | CoALA dimension | Concrete implementation |
 |---|---|
-| Working memory | `RetailState` in LangGraph4j; `AgenticScope` JDK-valued entries in LangChain4j |
-| Episodic memory | `EpisodicMemory`, updated by the learning operation |
-| Semantic memory | Product catalogue; vector-store retrieval in LangGraph4j, lexical search adapter in LangChain4j |
-| Procedural memory | The action registry and explicit runtime procedures; not a learned skill library |
-| Retrieval | Retrieve catalogue/episodic candidates into current context |
-| Reasoning | LLM proposal and advisory reflection, plus deterministic evaluation/monitoring |
-| Learning | Outcome updates to episodic memory, adaptive-memory metadata and workspace admission scores |
+| Working memory | `RetailState` is the primary LangGraph working memory and is persisted by the graph checkpointer; `WorkingMemorySnapshot` is a separate bounded subject/execution snapshot API. The experimental Agentic path still uses its existing `AgenticScope` entries. |
+| Episodic memory | `EpisodicMemoryRecord` stores an interaction/event, goal, outcome classification, provenance, evidence links and retention; primary access is through `CoalaMemoryService`. |
+| Semantic memory | `SemanticMemoryRecord` stores explicit subject-predicate-value facts with evidence, authority, validity and supersession. Product catalogue remains a separate system of record, not automatically personal semantic memory. |
+| Procedural memory | `ProceduralMemoryRecord` stores reusable procedure candidates with applicability, preconditions, steps, postconditions and repeated evidence-backed validation. The action registry remains a separate execution-authority boundary. |
+| Retrieval | Four primary graph branches retrieve episodic, semantic, validated procedural and catalogue candidates into distinct state fields before workspace admission. |
+| Reasoning | LLM proposal and advisory reflection, plus deterministic evaluation/monitoring. |
+| Learning | Episodic event recording and per-memory workspace exposure records. Overall task success is not copied to every admitted memory; causal attribution requires explicit evidence-backed per-use records. |
 | Grounding | Whitelisted `search_catalog`, `get_history`, `check_stock` actions |
 | Decision making | Planning proposal/evaluation/selection and execution/observation in a repeated cycle |
 
@@ -72,7 +72,7 @@ The paper's proposed synthesis runtime identifies durable control-state categori
 |---|---|---|
 | Active intention | `IntentionRecord` or primitive scope keys | Explicit goal, rationale, method, triggers, termination and revision |
 | Bounded workspace | `BoundedWorkspace`, `WorkspaceCandidate` | Typed competition under token-cost budget; recipients recorded |
-| Memory | `AdaptiveMemoryPolicy`, `EpisodicMemory` | Heuristic activation/value update after downstream use |
+| Memory | `CoalaMemoryService`, `EpisodicMemoryRecord`, `SemanticMemoryRecord`, `ProceduralMemoryRecord`, `MemoryUseRecord`, `MemoryAttributionRecord` | Separate typed stores and lifecycle; causal feedback is per use and evidence-backed. Automatic consolidation and adaptive B1 scoring remain later work. |
 | Compiled skills | No compiler | B5 is not presented as an unresolved sixth bundle; no reusable compiled skill graph is claimed |
 | Uncertainty | `UncertaintyEstimate` | Provenance is carried; self-confidence remains uncalibrated |
 | Resource budget | Counts for model calls, tools, planning rounds and iterations | No provider token/cost estimator |
@@ -84,12 +84,12 @@ The implementation deliberately keeps authoritative values in Java/runtime state
 
 ### LangGraph4j
 
-- The graph is constructed in `RetailAgent.buildGraph()`.
+- `RetailAgent` is the public facade; `RetailAgentGraph` owns the compiled graph topology/checkpoint lifecycle and `RetailGraphNodes` owns node operations.
 - LangGraph4j 1.8's `CompileConfig.recursionLimit` is explicitly derived from the application-level budgets; it is an engine-level final guard, not a substitute for the planning/tool/model budgets.
 - Nodes implement retrieval, proposal, evaluation, selection, execution, reflection, recovery, learning and answer.
 - Conditional edges express replan/continue/recover/finish decisions.
 - `RetailState` is the graph working state. Its payload types are serializable because the graph clones state between nodes.
-- Spring AI provides chat and embedding integration. The simulator stack is in `com.example.retail.llm`.
+- LangChain4j is the primary real chat-model gateway; Spring AI remains the local vector-store/embedding integration in this phase. PostgreSQL JDBC backs durable CoALA memory/evidence when `app.memory.backend=postgres`. The simulator stack is in `com.example.retail.llm`.
 
 ### LangChain4j Agentic
 

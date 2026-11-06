@@ -158,6 +158,8 @@ public final class RetailAgentGraph {
             StateGraph<RetailState> root = new StateGraph<>(RetailState.SCHEMA, RetailState::new)
                     .addNode("begin_retrieval", node_async(nodes::beginRetrieval))
                     .addNode("retrieve_episodic", node_async(nodes::retrieveEpisodic))
+                    .addNode("retrieve_semantic", node_async(nodes::retrieveSemantic))
+                    .addNode("retrieve_procedural", node_async(nodes::retrieveProcedural))
                     .addNode("retrieve_catalog", node_async(nodes::retrieveCatalog))
                     .addNode("admit_workspace", node_async(nodes::admitWorkspace))
                     .addNode("planning", planning)
@@ -172,12 +174,16 @@ public final class RetailAgentGraph {
                     .addNode("learn", node_async(nodes::learn))
                     .addNode("answer", nodes::answerAsync);
 
-            // The two retrieval branches are a single parallel fan-out/fan-in step. Their writes
+            // The four retrieval branches are a single parallel fan-out/fan-in step. Their writes
             // target distinct state keys; only audit trace uses an append reducer.
             root.addEdge(START, "begin_retrieval");
             root.addEdge("begin_retrieval", "retrieve_episodic");
+            root.addEdge("begin_retrieval", "retrieve_semantic");
+            root.addEdge("begin_retrieval", "retrieve_procedural");
             root.addEdge("begin_retrieval", "retrieve_catalog");
             root.addEdge("retrieve_episodic", "admit_workspace");
+            root.addEdge("retrieve_semantic", "admit_workspace");
+            root.addEdge("retrieve_procedural", "admit_workspace");
             root.addEdge("retrieve_catalog", "admit_workspace");
             root.addEdge("admit_workspace", "planning");
 

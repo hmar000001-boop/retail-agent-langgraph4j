@@ -14,7 +14,7 @@ The purpose is to study the *same application semantics* through two orchestrati
 - Maven Wrapper (pins Maven 3.10.0; no system Maven installation is required)
 - Network access on the first build to download Maven and resolve project dependencies
 
-The repository includes a pinned Maven Wrapper. This packaging environment cannot resolve the Apache distribution host to run Maven, so the Phase 2 full reactor has **not been executed locally**. Static validation and source-level checks are reported separately; CI now contains both a full reactor job and a PostgreSQL checkpoint job. Run the build below on a Maven-enabled machine before treating this revision as build-verified.
+The repository includes a pinned Maven Wrapper. This packaging environment cannot resolve the Apache distribution host to run Maven, so the full reactor has **not been executed locally through Phase 3**. Static validation and standalone core compilation are reported separately; run the build below on a Maven-enabled machine before treating this revision as build-verified.
 
 ## Build and tests
 
@@ -73,7 +73,7 @@ A search result alone is not completion evidence. The Java verifier requires a m
 
 Both implementations separate the model's **proposal/interpretation authority** from runtime **transition authority**.
 
-1. Retrieve long-term-memory and catalogue candidates.
+1. Retrieve episodic, semantic, validated procedural-memory and catalogue candidates in parallel.
 2. Compete for bounded workspace admission; record broadcast recipients.
 3. Ask the LLM for candidate actions (proposal only).
 4. Independently evaluate the proposals using deterministic Java rules.
@@ -91,7 +91,7 @@ Shared:
 - Retail domain and deterministic catalogue source of truth.
 - Proposal record, independent evaluator, evidence verifier.
 - Intention/governor model, uncertainty metadata, resource limits.
-- Adaptive memory and bounded workspace policies.
+- Adaptive candidate selection and bounded workspace policies. The Phase 3 CoALA stores are currently integrated into the primary LangGraph4j retrieval/learning path; the frozen experimental Agentic module retains its original memory path.
 - Typed recovery record and policy.
 
 Resource ceilings are aligned through `AgentLimits` defaults: 3 outer action cycles, 3 planning rejections, 4 failures, 3 tool calls, 8 model calls, 2 recovery attempts, 180 memory tokens and a 260-token workspace. LangGraph4j also has a compile-time recursion ceiling derived from its application limits as a final guard.
@@ -118,7 +118,7 @@ Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/FAN_LAN_MECHANISM
 
 This is an executable mechanism-study workspace, not yet a production deployment:
 
-- The primary LangGraph4j module now has an optional PostgreSQL checkpoint saver; local default remains in-memory. Long-term memory/learning maps are still process-local.
+- The primary LangGraph4j module has independent PostgreSQL checkpoint and CoALA memory/evidence repositories. Local defaults remain in-memory for development/tests; the `production` profile rejects either in-memory backend. See [`docs/COALA_MEMORY.md`](docs/COALA_MEMORY.md) for repository boundaries, schema and limitations.
 - The experimental Agentic module is intentionally unchanged. It has no `AgenticScopeStore` configured; its custom planner exposes execution state for restoration, but that alone is not durable persistence.
 - B2 recovery preserves the committed goal and records a typed child/recovery resolution; it does **not** yet compile a resolution into reusable production rules. `eligibleForCompilation` remains false.
 - B6 uncertainty is explicitly marked uncalibrated. Model self-confidence is recorded as provenance only and never treated as calibrated probability.

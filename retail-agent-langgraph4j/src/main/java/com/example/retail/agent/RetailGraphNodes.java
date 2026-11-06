@@ -14,6 +14,16 @@ import com.example.retail.core.TypedRecoveryPolicy;
 import com.example.retail.core.UncertaintyEstimate;
 import com.example.retail.core.WorkspaceCandidate;
 import com.example.retail.domain.EpisodicMemory;
+import com.example.retail.memory.LegacyEpisodicCoalaRepository;
+import com.example.retail.memory.domain.EpisodicMemoryRecord;
+import com.example.retail.agent.domain.Evidence;
+import com.example.retail.memory.domain.MemoryLifecycle;
+import com.example.retail.memory.domain.MemoryProvenance;
+import com.example.retail.memory.domain.MemoryUseRecord;
+import com.example.retail.memory.service.CoalaMemoryService;
+import java.time.Duration;
+import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import com.example.retail.agent.domain.ActionDefinition;
 import com.example.retail.agent.domain.ActionInvocation;
 import com.example.retail.agent.domain.ActionOutcome;
@@ -29,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
@@ -47,7 +58,7 @@ public final class RetailGraphNodes {
     private final VectorStore vectorStore;
     private final ActionRegistry actionRegistry;
     private final ActionGateway actionGateway;
-    private final EpisodicMemory memory;
+    private final CoalaMemoryService memory;
     private final ProductCatalog catalog;
     private final AgentLimits limits;
     private final Map<String, AdaptiveMemoryPolicy> adaptiveMemoryByCustomer = new ConcurrentHashMap<>();
@@ -57,13 +68,25 @@ public final class RetailGraphNodes {
     private final TypedRecoveryPolicy recoveryPolicy = new TypedRecoveryPolicy();
     public RetailGraphNodes(LlmClient llm, VectorStore vectorStore, ProductCatalog catalog, OrderHistory orders,
                             EpisodicMemory memory, AgentSettings settings) {
-        this(llm, vectorStore, catalog, orders, memory, settings,
+        this(llm, vectorStore, catalog, orders, legacyMemoryService(memory), settings,
                 new RetailActionRegistry(), null);
     }
 
-    /** Injectable action boundary for policy tests and future real infrastructure adapters. */
+    /** Compatibility constructor retained for existing simulator/tests. */
     public RetailGraphNodes(LlmClient llm, VectorStore vectorStore, ProductCatalog catalog, OrderHistory orders,
                             EpisodicMemory memory, AgentSettings settings, ActionRegistry actionRegistry,
+                            ActionGateway actionGateway) {
+        this(llm, vectorStore, catalog, orders, legacyMemoryService(memory), settings, actionRegistry, actionGateway);
+    }
+
+    public RetailGraphNodes(LlmClient llm, VectorStore vectorStore, ProductCatalog catalog, OrderHistory orders,
+                            CoalaMemoryService memory, AgentSettings settings) {
+        this(llm, vectorStore, catalog, orders, memory, settings, new RetailActionRegistry(), null);
+    }
+
+    /** Injectable memory and authority boundaries used by infrastructure adapters and tests. */
+    public RetailGraphNodes(LlmClient llm, VectorStore vectorStore, ProductCatalog catalog, OrderHistory orders,
+                            CoalaMemoryService memory, AgentSettings settings, ActionRegistry actionRegistry,
                             ActionGateway actionGateway) {
         this.llm = java.util.Objects.requireNonNull(llm, "llm");
         this.vectorStore = java.util.Objects.requireNonNull(vectorStore, "vectorStore");
@@ -76,6 +99,10 @@ public final class RetailGraphNodes {
         this.limits = java.util.Objects.requireNonNull(settings, "settings").limits();
     }
 
+    private static CoalaMemoryService legacyMemoryService(EpisodicMemory memory) {
+        return new CoalaMemoryService(new LegacyEpisodicCoalaRepository(java.util.Objects.requireNonNull(memory, "memory")));
+    }
+
     // ------------------------------------------------------------------ nodes
 
     /** Start a retrieval fan-out; the two following graph branches execute independently. */
@@ -83,14 +110,48 @@ public final class RetailGraphNodes {
         return update(RetailState.TRACE, List.of("retrieve:" + phase(s), "retrieve:parallel-fanout:" + phase(s)));
     }
 
-    /** Episodic retrieval branch. The list is merged through the shared appender channel. */
+    /** Episodic retrieval is scoped to this authenticated subject and excludes expired/inactive records. */
     Map<String, Object> retrieveEpisodic(RetailState s) {
-        List<MemoryCandidate> candidates = new ArrayList<>();
-        for (String note : memory.recent(s.customer(), 5)) {
-            String id = "episode-" + Integer.toHexString((s.customer() + note).hashCode());
-            candidates.add(new MemoryCandidate(id, "Previously: " + note, 0.65, 30, 0.55, 0.15, tokenCost(note)));
-        }
-        return update(RetailState.EPISODIC_CANDIDATES, List.copyOf(candidates));
+        Instant now = Instant.now();
+        List<MemoryCandidate> candidates = memory.recentEpisodes(s.customer(), now, 5).stream()
+                .map(episode -> new MemoryCandidate("episode-" + episode.id(),
+                        "Previously: " + episode.summary(), 0.65, 30, 0.55, 0.15,
+                        tokenCost(episode.summary())))
+                .toList();
+        return update(RetailState.EPISODIC_CANDIDATES, candidates);
+    }
+
+    /** Semantic memory contains explicit, evidence-backed user/context facts, not catalogue authority. */
+    Map<String, Object> retrieveSemantic(RetailState s) {
+        Instant now = Instant.now();
+        List<MemoryCandidate> candidates = memory.searchSemantic(s.customer(), s.query(), now, 4).stream()
+                .map(fact -> {
+                    String content = fact.subject() + " " + fact.predicate() + " " + fact.value()
+                            + " [source=" + fact.provenance().kind() + ":" + fact.provenance().sourceId()
+                            + "; evidence=" + String.join(",", fact.evidenceIds())
+                            + "; confidence=" + fact.confidence() + "]";
+                    return new MemoryCandidate("semantic-" + fact.id(), content,
+                            fact.confidence(), 25, fact.confidence(), 0.12, tokenCost(content));
+                })
+                .toList();
+        return update(RetailState.SEMANTIC_CANDIDATES, candidates);
+    }
+
+    /** Only repeatedly validated procedural memories can be retrieved as reusable methods. */
+    Map<String, Object> retrieveProcedural(RetailState s) {
+        List<String> tags = java.util.Arrays.stream(s.query().toLowerCase(java.util.Locale.ROOT).split("[^a-z0-9]+"))
+                .filter(token -> token.length() > 2).distinct().limit(12).toList();
+        List<MemoryCandidate> candidates = memory.applicableProcedures(s.customer(), tags, 3).stream()
+                .map(procedure -> {
+                    String content = "Validated method " + procedure.name() + ": " + String.join("; ", procedure.steps())
+                            + " | preconditions: " + String.join("; ", procedure.preconditions())
+                            + " | postconditions: " + String.join("; ", procedure.postconditions())
+                            + " | validation evidence: " + String.join(",", procedure.successfulEvidenceIds())
+                            + " | successful validations: " + procedure.successfulValidations();
+                    double score = Math.min(1.0, procedure.successfulValidations() / 5.0);
+                    return new MemoryCandidate("procedure-" + procedure.id(), content, score, 35, score, 0.20, tokenCost(content));
+                }).toList();
+        return update(RetailState.PROCEDURAL_CANDIDATES, candidates);
     }
 
     /** Semantic/catalogue retrieval branch. Retrieved product facts remain non-authoritative until checked by tools. */
@@ -142,6 +203,7 @@ public final class RetailGraphNodes {
         String workspaceText = admission.admitted().stream().map(WorkspaceCandidate::content).collect(Collectors.joining("\n"));
         String mem = workspaceText.isBlank() ? "(empty bounded workspace)" : workspaceText;
         String phase = phase(s);
+        recordAdmittedMemoryUses(s, admission.admitted());
         return update(RetailState.MEMORY, mem,
                 RetailState.WORKSPACE, admission.admitted(),
                 RetailState.TRACE, List.of("workspace:admit=" + admission.admitted().size()
@@ -430,25 +492,53 @@ public final class RetailGraphNodes {
         String outcome = verified.isEmpty()
                 ? "not verified: " + s.query()
                 : "verified in-stock: " + verified.stream().map(p -> p.id() + " $" + p.price()).collect(Collectors.joining(", "));
-        memory.remember(s.customer(), "asked '" + s.query() + "' -> " + outcome);
-
-        AdaptiveMemoryPolicy adaptive = adaptiveMemoryByCustomer.get(s.customer());
-        if (adaptive != null) {
-            for (WorkspaceCandidate item : s.workspace()) {
-                if (item.id().startsWith("memory:")) {
-                    String id = item.id().substring("memory:".length());
-                    adaptive.recordDownstreamUse(id, !verified.isEmpty());
-                }
-            }
+        Instant now = Instant.now();
+        List<String> episodeEvidenceIds = List.of();
+        if (!verified.isEmpty()) {
+            String evidenceId = "episode-evidence-" + sha256(s.threadId() + "|" + s.iteration() + "|" + outcome);
+            memory.recordEvidence(new Evidence(evidenceId, "retail request", "verified-current-stock",
+                    outcome, Evidence.EvidenceSource.FIRST_PARTY_SYSTEM, Evidence.Authority.SYSTEM_OF_RECORD,
+                    "retail-catalogue", now, now.plus(Duration.ofMinutes(15)),
+                    "Deterministic verification against the catalogue system of record"), s.customer());
+            episodeEvidenceIds = List.of(evidenceId);
         }
-        int workspaceUpdates = 0;
-        for (WorkspaceCandidate item : s.workspace()) {
-            WorkspaceCandidate updated = workspacePolicy.updateAfterOutcome(item, !verified.isEmpty());
-            workspaceAdmissionScores.put(item.id(), updated.admissionScore());
-            workspaceUpdates++;
-        }
+        EpisodicMemoryRecord episode = new EpisodicMemoryRecord(
+                UUID.nameUUIDFromBytes((s.customer() + "|" + s.threadId() + "|" + s.iteration() + "|" + s.planningRound() + "|" + outcome).getBytes(StandardCharsets.UTF_8)).toString(),
+                s.customer(), now, s.query(), outcome,
+                verified.isEmpty() ? EpisodicMemoryRecord.Outcome.UNKNOWN : EpisodicMemoryRecord.Outcome.VERIFIED_SUCCESS,
+                episodeEvidenceIds, new MemoryProvenance(MemoryProvenance.Kind.OBSERVED_INTERACTION,
+                        s.threadId(), "Outcome observed by the deterministic retail evidence verifier", now),
+                MemoryLifecycle.ACTIVE, now, now, now.plus(Duration.ofDays(90)));
+        memory.recordEpisode(episode);
+        // Exposure is recorded per item at workspace admission. A task-level success does not
+        // imply that every admitted/retrieved memory caused the result; use-specific attribution
+        // requires a separate evidence-backed MemoryAttributionRecord.
+        // Do not reward every admitted candidate with the task's overall result. The B3 score
+        // remains unchanged until a use-specific, evidence-backed attribution exists.
         return update(RetailState.TRACE, List.of("learn", "learn:outcome=" + (verified.isEmpty() ? "unverified" : "verified"),
-                "learn:workspace-admission-updated=" + workspaceUpdates));
+                "learn:memory-outcome-attribution=deferred-until-item-level-evidence",
+                "learn:workspace-admission-updates=0"));
+    }
+
+    private void recordAdmittedMemoryUses(RetailState state, List<WorkspaceCandidate> admitted) {
+        for (WorkspaceCandidate item : admitted) {
+            MemoryUseRecord.Kind kind;
+            String memoryId;
+            if (item.id().startsWith("memory:episode-")) {
+                kind = MemoryUseRecord.Kind.EPISODIC; memoryId = item.id().substring("memory:episode-".length());
+            } else if (item.id().startsWith("memory:semantic-")) {
+                kind = MemoryUseRecord.Kind.SEMANTIC; memoryId = item.id().substring("memory:semantic-".length());
+            } else if (item.id().startsWith("memory:procedure-")) {
+                kind = MemoryUseRecord.Kind.PROCEDURAL; memoryId = item.id().substring("memory:procedure-".length());
+            } else {
+                continue;
+            }
+            String key = state.customer() + "|" + state.threadId() + "|" + kind.name() + "|" + memoryId + "|" + state.iteration()
+                    + "|" + state.planningRound() + "|" + phase(state);
+            String useId = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
+            memory.recordUse(new MemoryUseRecord(useId, state.customer(), state.threadId(), memoryId,
+                    kind, MemoryUseRecord.Stage.ADMITTED_TO_WORKSPACE, "planning-context", Instant.now()));
+        }
     }
 
     /** Compatibility wrapper for direct tests; the compiled graph uses answerAsync. */
