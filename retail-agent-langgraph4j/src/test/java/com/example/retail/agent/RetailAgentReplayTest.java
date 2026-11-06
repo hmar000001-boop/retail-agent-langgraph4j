@@ -28,7 +28,7 @@ class RetailAgentReplayTest {
                 any = s.anyMatch(p -> p.toString().endsWith(".cassette"));
             }
         }
-        Assumptions.assumeTrue(any, "no cassettes yet: mvn test -Dapp.llm.provider=real -Dapp.llm.record=true");
+        Assumptions.assumeTrue(any, "no cassettes yet: APP_LLM_PROVIDER=real APP_LLM_RECORD=true ./mvnw test");
     }
 
     @Autowired RetailAgent agent;

@@ -1,72 +1,75 @@
 # Verification, test strategy and known limitations
 
-## Verification status of the current source revision
+## Verification status — Phase 2 source revision (2026-11-06)
 
-The latest user-provided GitHub Actions run established:
+This section describes the Phase 2 source tree in this archive. It supersedes older test-status snapshots in this file and in historical project notes.
 
-- Shared core: **9 tests passed**.
-- LangGraph4j + Spring AI: **18 tests passed**; the module compiled, its Spring application context loaded, and the scripted, fault-injection, cassette, catalogue and LLM-stack tests passed.
-- LangChain4j Agentic: production and test sources **compiled**; 4 tests ran, with 3 passing and 1 failing.
+Verified in the packaging environment:
 
-The remaining LangChain4j failure is in `LangChainRetailRuntimeTest.plannerRunsRetrieveProposeEvaluateSelectExecuteReflectAndAnswer`. The planner did invoke the model-backed proposal agent twice, as also shown by the scripted model's expected call count, but the transition trace omitted an explicit `propose` event. The trace contained `budget:model:proposal=reserved`, then `evaluate`, which made the test unable to distinguish reservation from actual model invocation. The current source wraps the proposal model call in a named non-AI trace adapter that writes `propose` immediately before invoking the model, and strengthens the test to assert exactly two proposal events.
+- OpenJDK 21.0.12 is available.
+- All shared-core production Java sources compile with `javac --release 21`.
+- Every Maven POM parses as XML.
+- `application.yml` and `compose.phase2.yml` parse as YAML.
+- The experimental `retail-agent-langchain4j/` module is byte-for-byte identical to the Phase 1 delivery and was not changed.
+- The generated archive passes `unzip -t`.
 
-This environment cannot run the complete Maven reactor, so the trace correction **still requires a fresh CI run**. Do not treat the current source as fully green until `mvn -B -ntp clean verify` passes.
+Not verified in this environment:
 
-## Tests in the repository
+- The Maven Wrapper was invoked but stopped before Maven startup because this environment cannot resolve `downloads.apache.org`. The Maven reactor, JUnit suite, Spring application context, primary real LangChain4j/OpenAI calls, and PostgreSQL saver were therefore not executed here.
+- CI definitions include a full-reactor job and a PostgreSQL-backed LangGraph4j job, but no CI result is bundled with this delivery. A green workflow run is still required.
 
-### Shared core
+Do not interpret source compilation or static configuration parsing as proof that all integration tests pass.
 
-- Model self-confidence cannot authorize `finish`.
-- Current stock, observed price, product attributes and user constraints must all match before the goal is satisfied.
-- Bounded workspace rejects content that exceeds its token budget.
-- Intention method may change while committed goal remains unchanged.
-- `Proposal` round-trips through Java serialization for LangGraph4j state cloning.
-- Adaptive memory refresh preserves learned activation/downstream value while refreshing content and cost metadata.
-- Both adapters use the same default `AgentLimits` resource envelope.
+## Phase 2 tests added or retained
 
-### LangGraph4j
+### Shared domain contracts
 
-The uploaded test suite is retained and adapted to the shared core: LLM stack configuration, catalogue search, scripted agent loop, contract behavior, cassette record/replay, replay misses, low-confidence/fault behavior and fault-injection semantics. The simulator uses the provider abstraction and supports scripted replies, recording/replay and injected timeout/malformed/empty/low-confidence cases. Trace events now include cycle/planning-round coordinates so repeated node executions are observable and testable.
+- Action effects must be explicitly declared; an empty effect list is rejected rather than assumed read-only.
+- A non-`READ` action requires human approval by default, including a low-risk internal `WRITE`.
+- External, high/critical-risk, destructive, irreversible, financial and external-sharing actions require approval.
+- A low-risk internal `READ` action can execute without definition-level approval.
+- Evidence freshness is explicit; model confidence cannot authorize a verified finish.
+- Workspace admission is bounded; action invocations are immutable and require a subject and idempotency key.
 
-### LangChain4j Agentic
+### Primary LangGraph4j path
 
-- Scripted `ChatModel` drives the custom planner through retrieval, proposal, independent evaluation, selection, tool execution, reflection/monitoring, learning and final answer.
-- The test checks that a stock observation is required before recommendation.
-- The test calls the same runtime twice to guard against a stale terminal planner cursor leaking into a new request.
+- Scripted model loop, catalogue behavior, fallback/fault paths and LLM stack selection.
+- Cassette record/replay and replay misses.
+- Planning subgraph and parallel retrieval fan-out/fan-in.
+- Approval execution boundary, stale-authority revalidation, authenticated thread owner check, typed checkpointed approval request (action/risk/effects/arguments/rationale/subject/intention), interrupt/resume using a matching approval ID, stale-ID rejection and denial-without-execution.
+- Workspace re-admission of tool output before reflection.
+- Duplicate graph-thread creation and model-call accounting behavior.
 
-The LangChain4j simulator is currently scripted-only; it does not yet have the LangGraph4j module's cassette recorder/replayer or full fault-injection suite.
+### Experimental LangChain4j Agentic path
 
-## Important comparison limitations
+The module is intentionally unchanged in Phase 2. Its earlier source/test observations remain historical; the Phase 2 packaging environment did not run its JUnit suite. This module remains an experimental comparison implementation, not the primary runtime.
 
-1. **Retrieval differs.** LangGraph4j uses Spring AI vector search; LangChain4j uses deterministic lexical catalogue search. Do not compare answer quality as a framework result until the retrieval adapter is unified.
-2. **Model call handling differs.** LangGraph4j has retries, provider fallback and fault simulation. LangChain4j's current scripted adapter tests orchestration; provider-error resilience and cassette parity remain follow-up work.
-3. **State durability is not configured.** LangGraph4j has no durable checkpoint store in this sample. LangChain4j has no configured `AgenticScopeStore`; the Planner's execution-state methods alone do not persist across process loss.
-4. **Learning is heuristic and process-local.** There is no offline/online statistical calibration or persistence of learned utility values.
-5. **B2 compilation is intentionally absent.** Recovery outputs are not automatically converted into reusable skills.
-6. **No production integrations.** Catalogue, order history and stock are in-memory fixtures, and there is no payment, ordering or external side effect.
+## Remaining architecture and production limitations
 
-## Suggested next acceptance gates
+1. **Authentication boundary:** There is no REST/API security layer in this phase. `authenticatedSubjectId` must be passed only by a trusted caller derived from a verified security principal. Never trust a request-body or model-provided subject ID.
+2. **Multi-instance coordination:** The fixed striped locks serialize same-thread operations only inside one JVM. They do not coordinate multiple application instances. Use a single writer until Phase 8 adds distributed concurrency controls.
+3. **PostgreSQL checkpoint semantics:** PostgreSQL V1 saver wiring is source-integrated but not locally integration-tested. Persistence of approval interruption metadata and cross-process approval resume require an explicit integration test. Do not infer restart-safe approval resumption merely from checkpoint persistence; assess a V2 saver/migration as a separate compatibility task.
+4. **Memory persistence:** Episodic, semantic and procedural memory stores, memory lifecycle/consolidation, durable intention storage and cross-session learning are not delivered here. The graph checkpoint does not replace those stores.
+5. **Retrieval:** The default remains Spring AI `SimpleVectorStore` with hash embeddings. Durable hybrid retrieval, metadata isolation, reranking, source freshness and retrieval evaluation remain later phases.
+6. **LLM features:** Primary chat uses LangChain4j asynchronous `ChatModel` calls and typed Java DTO parsing/validation. JSON Schema constrained output, dynamic `ToolProvider`/MCP, typed streaming and model routing remain later work.
+7. **Budgets:** Model-call accounting counts logical LangChain4j gateway invocations (including the structured-output repair call), not every underlying HTTP retry, token, monetary cost or provider-side operation.
+8. **Action infrastructure:** The current catalogue and action gateway are deterministic local simulator components. Real inventory/order systems, transactional outbox, externally durable idempotency, audit retention and compensation are not present.
+9. **Security hardening:** Prompt-injection isolation, tenant partitioning, secret management, retention controls, rate limits, deadlines and operational audit are incomplete.
+10. **Recovery and learning:** Recovery is not yet a separately compiled isolated child graph with typed resolution compilation; adaptive memory utility remains heuristic and process-local. These belong to later phases.
 
-Before benchmark:
+## CI acceptance gates
 
-- Run the complete Maven build and both modules' tests.
-- Use one retrieval implementation and a shared set of deterministic prompts/scenarios.
-- Add adversarial simulator cases: premature `finish`, unsupported tool name, invalid product ID, contradictory stock, stale price, low model confidence with correct action, high confidence with wrong action, provider timeout and malformed output.
-- Assert both *state outcomes* and *trace transitions*, not just answer text.
-- Record budget consumption and ensure every loop has a finite bound.
+Before accepting Phase 2 as integrated:
+
+- Run `./mvnw -B -ntp clean verify` on a runner able to resolve Maven Central and the configured wrapper distribution.
+- Run the PostgreSQL-backed LangGraph4j job using `compose.phase2.yml` or an equivalent PostgreSQL service.
+- Confirm `RetailAgentApprovalResumeTest` pauses before executing the action, exposes the exact typed action request, rejects a different authenticated subject and stale approval ID, resumes successfully for the owner with the matching ID, and denies without invoking the gateway.
+- Verify all Agentic module files remain unchanged from the Phase 1 delivery.
 
 Before production:
 
-- Add a durable checkpoint/AgenticScope store and test process restart/resumption.
-- Add authenticated customer scoping, tool idempotency, external inventory source-of-truth and audit logs.
-- Calibrate uncertainty from held-out labelled outcomes and define risk thresholds.
-- Test recovery parent-state invariants and prove that any future compilation is safe before enabling it.
-
-## CI follow-up (2026-11-04)
-
-The latest CI run confirms that the independently versioned LangChain4j dependency pair resolves successfully:
-
-- `dev.langchain4j:langchain4j-agentic:1.22.0-beta32`
-- `dev.langchain4j:langchain4j-open-ai:1.22.0`
-
-It also confirms that the root reactor, shared core and LangGraph4j module pass. The remaining failure is only the missing LangChain4j `propose` trace event; it is corrected in the current source by wrapping the proposal model invocation in a non-AI trace adapter. The full reactor must be rerun before declaring the workspace green.
+- Implement the authenticated API boundary and derive customer identity only from verified credentials.
+- Test checkpoint and approval resume through process restart and across application instances.
+- Add distributed locking/optimistic concurrency, durable action idempotency and a transactional outbox for real side effects.
+- Add durable memory/intention stores, tenant-isolated retrieval and audit.
+- Calibrate uncertainty on held-out labelled tasks and run mechanism ablations with deterministic scenario data.

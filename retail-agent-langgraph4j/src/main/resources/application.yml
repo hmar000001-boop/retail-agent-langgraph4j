@@ -7,8 +7,11 @@ app:
     # when provider=simulated: scripted | replay
     simulation: ${APP_LLM_SIMULATION:scripted}
     cassette-dir: ${APP_LLM_CASSETTE_DIR:src/test/resources/cassettes}
-    # when provider=real: also write every call to cassette-dir
-    record: ${APP_LLM_RECORD:false}
+    record: ${APP_LLM_RECORD:false} # opt-in only; cassettes can contain private prompt data
+    model-name: ${OPENAI_MODEL:gpt-4o-mini}
+    api-key: ${OPENAI_API_KEY:}
+    timeout: ${APP_LLM_TIMEOUT:60s}
+    max-retries: ${APP_LLM_MAX_RETRIES:2}
     # optional fault injection, e.g.:
     # faults:
     #   - task: PROPOSE
@@ -16,9 +19,6 @@ app:
     #     skip: 0
     #     times: 1
     selector:
-      chat:
-        real: openai
-        simulated: none
       embedding:
         real: openai
         hash: none
@@ -33,11 +33,21 @@ app:
     memory-token-budget: 180
     workspace-token-budget: 260
 
+  graph:
+    checkpoint:
+      backend: ${APP_GRAPH_CHECKPOINT_BACKEND:memory} # memory is local/test only; production profile requires postgres
+      host: ${APP_GRAPH_CHECKPOINT_HOST:localhost}
+      port: ${APP_GRAPH_CHECKPOINT_PORT:5432}
+      database: ${APP_GRAPH_CHECKPOINT_DATABASE:langgraph4j}
+      username: ${APP_GRAPH_CHECKPOINT_USERNAME:postgres}
+      password: ${APP_GRAPH_CHECKPOINT_PASSWORD:}
+      create-tables: ${APP_GRAPH_CHECKPOINT_CREATE_TABLES:true}
+
 spring:
   ai:
     model:
-      # Spring AI only wires the providers we select; everything else is switched off
-      chat: ${app.llm.selector.chat.${app.llm.provider}}
+      # Spring AI remains the vector-store/embedding adapter in this phase, not the chat provider.
+      chat: none
       embedding: ${app.llm.selector.embedding.${app.llm.embeddings}}
       image: none
       moderation: none
@@ -46,6 +56,3 @@ spring:
         transcription: none
     openai:
       api-key: ${OPENAI_API_KEY:}
-      chat:
-        options:
-          model: ${OPENAI_MODEL:gpt-4o-mini}

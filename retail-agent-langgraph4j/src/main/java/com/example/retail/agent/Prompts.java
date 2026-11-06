@@ -43,8 +43,8 @@ final class Prompts {
                 .append('/').append(s.budget().toolCallsLimit()).append('\n');
         b.append("PLANNING_FEEDBACK: ").append(s.feedback().isBlank() ? "(none)" : s.feedback()).append('\n');
         b.append("BOUNDED_WORKSPACE:\n").append(s.memory().isBlank() ? "(none)" : s.memory()).append('\n');
-        List<String> obs = s.observations();
-        b.append("OBSERVATIONS:\n").append(obs.isEmpty() ? "(none)" : String.join("\n", obs));
+        // Observation history is deliberately NOT serialized into prompts. The latest outcome
+        // must first win workspace admission; otherwise history could bypass B3's budget.
         if (proposals != null) {
             b.append("\nPROPOSALS:");
             for (int i = 0; i < proposals.size(); i++) {

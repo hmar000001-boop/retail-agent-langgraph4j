@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * Provider-agnostic: asserts invariants only, so the SAME test runs against the simulator (default)
- * and against OpenAI (mvn test -Dapp.llm.provider=real). Add -Dapp.llm.record=true to capture cassettes.
+ * and against OpenAI (mvn test -Dapp.llm.provider=real). Set APP_LLM_RECORD=true explicitly to capture cassettes.
  */
 @SpringBootTest
 class RetailAgentContractTest {

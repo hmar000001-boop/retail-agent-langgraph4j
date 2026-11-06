@@ -16,7 +16,8 @@ class LlmStackTest {
     private final ChatModel realStandIn = new ScriptedChatModel(List.of());
 
     private static LlmProperties props(Provider p, Simulation s, boolean record, List<FaultRule> faults) {
-        return new LlmProperties(p, Embeddings.HASH, s, "target/cassettes-test", record, faults);
+        return new LlmProperties(p, Embeddings.HASH, s, "target/cassettes-test", record, faults,
+                "gpt-4o-mini", "", java.time.Duration.ofSeconds(60), 2);
     }
 
     @Test
@@ -33,11 +34,11 @@ class LlmStackTest {
     }
 
     @Test
-    void realUsesTheProviderModel_andRecordWrapsIt() {
-        assertThat(LlmStack.build(props(Provider.REAL, Simulation.SCRIPTED, false, List.of()), () -> realStandIn))
-                .isSameAs(realStandIn);
-        assertThat(LlmStack.build(props(Provider.REAL, Simulation.SCRIPTED, true, List.of()), () -> realStandIn))
-                .isInstanceOf(RecordingChatModel.class);
+    void realProviderCannotFallBackToTheSpringAiChatModel() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                LlmStack.build(props(Provider.REAL, Simulation.SCRIPTED, false, List.of()), () -> realStandIn))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LangChain4j gateway");
     }
 
     @Test

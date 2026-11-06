@@ -1,5 +1,6 @@
 package com.example.retail.agent;
 
+import com.example.retail.agent.domain.ActionDefinition;
 import com.example.retail.domain.OrderHistory;
 import com.example.retail.domain.Product;
 import com.example.retail.domain.ProductCatalog;
@@ -23,6 +24,19 @@ public class Tools {
     public Tools(ProductCatalog catalog, OrderHistory orders) {
         this.catalog = catalog;
         this.orders = orders;
+    }
+
+    /** Closed action policy. Unknown actions fail closed; finish is a control proposal, not a tool. */
+    public static boolean requiresHumanApproval(String actionId) {
+        ActionDefinition definition = switch (actionId) {
+            case "search_catalog", "get_history", "check_stock" -> new ActionDefinition(
+                    actionId, "Read-only local retail lookup", ActionDefinition.ActionKind.INTERNAL,
+                    ActionDefinition.RiskLevel.LOW, List.of(ActionDefinition.Effect.READ), List.of(),
+                    java.time.Duration.ofSeconds(5), true, false, false, false, false, false);
+            case "finish" -> null;
+            default -> throw new IllegalArgumentException("action is not registered: " + actionId);
+        };
+        return definition != null && definition.requiresHumanApproval();
     }
 
     public String run(Proposal p, String customerId) {

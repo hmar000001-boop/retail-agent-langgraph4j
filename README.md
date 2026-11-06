@@ -2,7 +2,7 @@
 
 A single Maven reactor containing two independent implementations of the same retail-agent example:
 
-- **`retail-agent-langgraph4j`** — the supplied LangGraph4j + Spring AI implementation, refactored to use the shared Java core.
+- **`retail-agent-langgraph4j`** — the primary LangGraph4j orchestration path, now using LangChain4j for production chat and the shared Java core.
 - **`retail-agent-langchain4j`** — a separate LangChain4j Agentic implementation using a custom `Planner` and the same shared Java policies.
 - **`retail-agent-core`** — framework-neutral domain objects and control policies shared by both implementations.
 
@@ -11,30 +11,30 @@ The purpose is to study the *same application semantics* through two orchestrati
 ## Requirements
 
 - JDK 21
-- Maven 3.9+
-- Network access on the first build to resolve Maven dependencies
+- Maven Wrapper (pins Maven 3.10.0; no system Maven installation is required)
+- Network access on the first build to download Maven and resolve project dependencies
 
-The original upload did not include Maven Wrapper files. The first CI run confirmed the shared core's 9 tests pass, then exposed two LangGraph4j test failures and one Spring configuration-binding error. Those findings are corrected in this revision, but this packaging environment cannot reach Maven Central, so the corrected full reactor has **not yet been re-run**. Run the build below on a Maven-enabled machine before treating this revision as build-verified.
+The repository includes a pinned Maven Wrapper. This packaging environment cannot resolve the Apache distribution host to run Maven, so the Phase 2 full reactor has **not been executed locally**. Static validation and source-level checks are reported separately; CI now contains both a full reactor job and a PostgreSQL checkpoint job. Run the build below on a Maven-enabled machine before treating this revision as build-verified.
 
 ## Build and tests
 
 From this directory:
 
 ```bash
-mvn -B -ntp clean verify
+./mvnw -B -ntp clean verify
 ```
 
 Run one module and its shared dependency:
 
 ```bash
-mvn -B -ntp -pl retail-agent-langchain4j -am test
-mvn -B -ntp -pl retail-agent-langgraph4j -am test
+./mvnw -B -ntp -pl retail-agent-langchain4j -am test
+./mvnw -B -ntp -pl retail-agent-langgraph4j -am test
 ```
 
 Run the LangChain4j Agentic demo with its deterministic simulator:
 
 ```bash
-mvn -pl retail-agent-langchain4j -am exec:java \
+./mvnw -pl retail-agent-langchain4j -am exec:java \
   -Dexec.mainClass=com.example.retail.langchain.RetailAgenticApplication
 ```
 
@@ -44,19 +44,19 @@ Run the LangChain4j implementation against OpenAI:
 
 ```bash
 OPENAI_API_KEY=... RETAIL_LLM_PROVIDER=openai \
-  mvn -pl retail-agent-langchain4j -am exec:java \
+  ./mvnw -pl retail-agent-langchain4j -am exec:java \
   -Dexec.mainClass=com.example.retail.langchain.RetailAgenticApplication
 ```
 
 `OPENAI_MODEL` optionally overrides the default model name (`gpt-4o-mini`). The simulated provider is the default and needs no key.
 
-The LangGraph4j module remains a Spring Boot application. Its deterministic provider is selected by default in `application.yml`; tests exercise the graph directly. Start its application context with:
+The LangGraph4j module remains a Spring Boot application. Its deterministic provider and in-memory checkpoint saver are selected by default in `application.yml`; tests exercise the graph directly. Start its application context with:
 
 ```bash
-mvn -pl retail-agent-langgraph4j -am spring-boot:run
+./mvnw -pl retail-agent-langgraph4j -am spring-boot:run
 ```
 
-For live OpenAI calls, set `APP_LLM_PROVIDER=real` and `OPENAI_API_KEY`. The graph implementation's existing configuration also supports local scripted, cassette replay, recording, and fault injection; see [`retail-agent-langgraph4j/README.md`](retail-agent-langgraph4j/README.md).
+For live OpenAI chat calls, set `APP_LLM_PROVIDER=real` and `OPENAI_API_KEY`; LangChain4j is the provider adapter. Scripted/replay/fault injection remain available for deterministic tests. Cassette recording is opt-in with `APP_LLM_RECORD=true` and should be treated as sensitive local data. See [`retail-agent-langgraph4j/README.md`](retail-agent-langgraph4j/README.md).
 
 ## Example task
 
@@ -116,15 +116,14 @@ Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/FAN_LAN_MECHANISM
 
 ## Persistence and production boundaries
 
-This is an executable teaching example, not a production deployment:
+This is an executable mechanism-study workspace, not yet a production deployment:
 
-- Both modules currently keep per-run state and learning-policy maps in process memory.
-- No durable LangGraph4j checkpoint store is configured.
-- No LangChain4j `AgenticScopeStore` is configured. The custom planner exposes execution state for restoration, but that alone is not durable persistence.
+- The primary LangGraph4j module now has an optional PostgreSQL checkpoint saver; local default remains in-memory. Long-term memory/learning maps are still process-local.
+- The experimental Agentic module is intentionally unchanged. It has no `AgenticScopeStore` configured; its custom planner exposes execution state for restoration, but that alone is not durable persistence.
 - B2 recovery preserves the committed goal and records a typed child/recovery resolution; it does **not** yet compile a resolution into reusable production rules. `eligibleForCompilation` remains false.
 - B6 uncertainty is explicitly marked uncalibrated. Model self-confidence is recorded as provenance only and never treated as calibrated probability.
 - The retail catalogue is an in-memory fixture; `check_stock` reports that fixture's state, not a live retailer inventory service.
-- Human approval, authentication, multi-tenant authorization, external side-effect idempotency and durable audit storage are not implemented.
+- The primary graph includes a checkpointed approval interrupt/resume path and subject-binding check. The shared action contract requires approval for non-READ effects by default. API authentication, cross-instance locking, multi-tenant isolation, transactional external-side-effect idempotency and durable audit storage remain unimplemented.
 
 ## Dependency pins
 
@@ -145,3 +144,14 @@ The LangChain4j `agentic` module is documented by its maintainers as **experimen
 - Fan & Lan, *From Cognitive Architectures to Language Agents: A Mechanism-Level Review of Lineage, Convergence, and Migration Gaps*: <https://arxiv.org/abs/2607.23942>
 - LangChain4j Agentic documentation: <https://docs.langchain4j.dev/tutorials/agents/>
 - Previous code-level review: [`docs/reports/Retail_Agent_CoALA_Fan_Lan_Implementation_Audit.docx`](docs/reports/Retail_Agent_CoALA_Fan_Lan_Implementation_Audit.docx)
+
+## Reproducible build (Phase 0)
+
+The repository pins the Maven distribution and verifies its SHA-512 before first use. A JDK 21 installation is required.
+
+```bash
+./mvnw --version
+./mvnw -B -ntp -Dapp.llm.provider=simulated clean verify
+```
+
+On Windows, use `mvnw.cmd` with the same arguments. The wrapper downloads the pinned Apache Maven distribution into the user's Maven wrapper cache; it does not commit Maven binaries to the repository. CI uses the same wrapper and simulated providers. The experimental `retail-agent-langchain4j` Agentic module is retained as-is and is not part of the primary-runtime redesign.

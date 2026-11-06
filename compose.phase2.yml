@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16.6
+    container_name: retail-agent-phase2-postgres
+    environment:
+      POSTGRES_DB: ${APP_GRAPH_CHECKPOINT_DATABASE:-langgraph4j}
+      POSTGRES_USER: ${APP_GRAPH_CHECKPOINT_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${APP_GRAPH_CHECKPOINT_PASSWORD:?Set APP_GRAPH_CHECKPOINT_PASSWORD before starting PostgreSQL}
+    ports:
+      - "${APP_GRAPH_CHECKPOINT_PORT:-5432}:5432"
+    volumes:
+      - retail-agent-phase2-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  retail-agent-phase2-postgres-data:

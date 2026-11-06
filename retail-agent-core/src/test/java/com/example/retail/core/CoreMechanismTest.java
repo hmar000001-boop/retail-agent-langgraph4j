@@ -120,6 +120,16 @@ class CoreMechanismTest {
     }
 
     @Test
+    void uncertaintyRejectsNanAndInfiniteValues() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                new UncertaintyEstimate(Double.NaN, "bad", false, "none", 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                new UncertaintyEstimate(Double.POSITIVE_INFINITY, "bad", false, "none", 0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void graphStateProposalIsSerializableForLangGraphStateCloning() throws Exception {
         Proposal proposal = new Proposal("check_stock", "p-103", "verify current availability", 0.8, 0.95);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

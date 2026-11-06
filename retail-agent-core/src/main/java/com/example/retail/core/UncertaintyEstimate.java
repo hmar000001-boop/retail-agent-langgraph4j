@@ -7,7 +7,7 @@ public record UncertaintyEstimate(double probabilityCorrect, String provenance,
                                   boolean calibrated, String calibrationVersion,
                                   int calibrationSampleCount) implements Serializable {
     public UncertaintyEstimate {
-        if (probabilityCorrect < 0 || probabilityCorrect > 1) throw new IllegalArgumentException("probability must be in [0,1]");
+        if (!Double.isFinite(probabilityCorrect) || probabilityCorrect < 0 || probabilityCorrect > 1) throw new IllegalArgumentException("probability must be in [0,1]");
         provenance = provenance == null ? "unknown" : provenance;
         calibrationVersion = calibrationVersion == null ? "none" : calibrationVersion;
     }

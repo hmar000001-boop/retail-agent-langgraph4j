@@ -1,6 +1,17 @@
+# Maven
 **/target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE / OS
 .idea/
 .vscode/
 *.iml
 .DS_Store
+Thumbs.db
+
+# Local secrets and runtime artifacts
 .env
+.env.*
+!.env.example
+*.cassette.local
+*.cassette

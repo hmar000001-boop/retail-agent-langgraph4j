@@ -1,5 +1,19 @@
 # Changelog
 
+## Phase 2 — Primary LangGraph4j runtime
+
+- Split orchestration into the application facade, graph topology/thread lifecycle, and graph node operations.
+- Added an inner planning subgraph and parallel retrieval fan-out/fan-in with distinct channels.
+- Made LangChain4j the native asynchronous production chat integration for the primary graph; retained Spring AI for the existing vector-store adapter and simulator compatibility.
+- Preserved opt-in cassette recording/replay and scripted/fault-injection execution.
+- Added memory and PostgreSQL checkpoint saver configuration; production profile requires PostgreSQL.
+- Added checkpointed human approval interrupt/resume with authenticated-subject binding, a typed exact-action approval request, approval-ID-bound resume, pending-state checks, execution-time action snapshot re-validation and simulator gateway defence in depth.
+- Added approval/lifecycle/cassette tests and rejected non-finite uncertainty probabilities.
+- Strengthened the authority contract so every non-READ effect requires approval by default; empty/unspecified effects are rejected instead of being treated as read-only; added immediate execution-boundary registry revalidation.
+- Added an end-to-end graph test for interrupt, owner-bound checkpoint update, resume and denial, plus simulator idempotency collision/retry tests.
+- Made simulator idempotency atomic per key, used a canonical length-prefixed SHA-256 request fingerprint, rejected key reuse with a different payload, and rebound cached outcomes to the current retry invocation ID.
+- Corrected the checkpoint YAML property nesting and removed stale Spring AI real-chat wiring.
+
 ## Unreleased
 
 - Fixed `CoreMechanismTest.adaptiveMemoryRefreshPreservesOutcomeLearnedActivationAndValue` to compare outcome-learned floating-point values with a `1e-9` tolerance instead of exact decimal equality. The production adaptive-memory policy is unchanged; the observed `0.7799999999999999` value is the normal IEEE-754 representation of the expected `0.78` result.

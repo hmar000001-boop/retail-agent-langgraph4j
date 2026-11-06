@@ -1,9 +1,11 @@
 package com.example.retail.config;
 
-import org.springframework.ai.chat.model.ChatModel;
+import com.example.retail.agent.LlmGateway;
+import java.util.Objects;
 
-/**
- * The ChatModel the agent uses (real, scripted, replay, recording and/or fault-injecting).
- * A wrapper type on purpose: registering a second ChatModel bean next to Spring AI's own would be ambiguous.
- */
-public record AgentLlm(ChatModel model) {}
+/** Provider-neutral model boundary used by the primary LangGraph4j runtime. */
+public record AgentLlm(LlmGateway gateway) {
+    public AgentLlm {
+        Objects.requireNonNull(gateway, "gateway");
+    }
+}
